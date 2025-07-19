@@ -1,0 +1,1524 @@
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #2a2a2a;
+    color: #e0e0e0;
+}
+
+/* Main Menu Bar */
+#main-menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: #1e1e1e;
+    border-bottom: 1px solid #404040;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.menu-item {
+    position: relative;
+    padding: 6px 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.menu-item:hover {
+    background: #2a2a2a;
+}
+
+.menu-label {
+    font-size: 12px;
+    color: #e0e0e0;
+    font-weight: 500;
+}
+
+.menu-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    min-width: 160px;
+    display: none;
+    z-index: 1000;
+    padding: 4px 0;
+}
+
+.menu-item:hover .menu-dropdown {
+    display: block;
+}
+
+.menu-option {
+    padding: 6px 12px;
+    font-size: 11px;
+    color: #e0e0e0;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.menu-option:hover {
+    background: #0078d4;
+    color: white;
+}
+
+.menu-option.has-submenu {
+    position: relative;
+}
+
+.menu-option.has-submenu:hover .submenu {
+    display: block;
+}
+
+.submenu {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    background: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    min-width: 140px;
+    display: none;
+    padding: 4px 0;
+    z-index: 1001;
+}
+
+.submenu .menu-option {
+    padding: 6px 12px;
+    font-size: 11px;
+    color: #e0e0e0;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.submenu .menu-option:hover {
+    background: #0078d4;
+    color: white;
+}
+
+.menu-separator {
+    height: 1px;
+    background: #404040;
+    margin: 4px 0;
+}
+
+#scene-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* Left sidebar for tools - Photopea style */
+#toolbar {
+    position: fixed;
+    top: 30px;
+    left: 0;
+    width: 60px;
+    height: calc(100vh - 30px);
+    background: #1e1e1e;
+    border-right: 1px solid #404040;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Top panel for parameters - Photopea style */
+#top-panel {
+    position: fixed;
+    top: 30px;
+    left: 60px;
+    right: 0;
+    height: 50px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #404040;
+    z-index: 2;
+    overflow: hidden;
+    padding: 6px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Main content area (scene) */
+#scene-container {
+    position: fixed;
+    top: 80px;
+    left: 60px;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+}
+
+/* Toolbar button styles - Photopea style */
+.tool-btn {
+    width: 44px;
+    height: 44px;
+    margin: 4px 8px;
+    background: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 6px;
+    color: #e0e0e0;
+}
+
+.tool-btn:hover {
+    background: #3a3a3a;
+    border-color: #606060;
+    transform: scale(1.05);
+}
+
+.tool-btn.active {
+    background: #0078d4;
+    border-color: #0078d4;
+    color: white;
+    transform: scale(1.1);
+}
+
+.tool-icon {
+    font-size: 20px;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.tool-label {
+    font-size: 9px;
+    text-align: center;
+    line-height: 1;
+    font-weight: 500;
+}
+
+/* Parameter panel styles - Photopea style */
+.parameter-panel {
+    display: none;
+    background: #2a2a2a;
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    border: 1px solid #404040;
+}
+
+.parameter-panel.active {
+    display: block;
+}
+
+.form-group {
+    margin-bottom: 4px;
+    display: inline-block;
+    width: calc(50% - 4px);
+    margin-right: 8px;
+    vertical-align: top;
+}
+
+.form-group:nth-child(even) {
+    margin-right: 0;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 2px;
+    color: #c0c0c0;
+    font-weight: 500;
+    font-size: 9px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 3px 4px;
+    border: 1px solid #404040;
+    border-radius: 3px;
+    box-sizing: border-box;
+    background: #1e1e1e;
+    color: #e0e0e0;
+    font-size: 10px;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #0078d4;
+    box-shadow: 0 0 0 1px rgba(0, 120, 212, 0.2);
+}
+
+/* Make color picker smaller */
+.form-group input[type="color"] {
+    height: 24px;
+    padding: 2px;
+    cursor: pointer;
+    border: 1px solid #404040;
+}
+
+.form-group input[type="range"] {
+    width: 60%;
+    margin-right: 4px;
+    vertical-align: middle;
+    background: #1e1e1e;
+    border: 1px solid #404040;
+}
+
+.form-group span[id$="-value"] {
+    display: inline-block;
+    width: 35%;
+    text-align: right;
+    font-weight: 500;
+    color: #e0e0e0;
+    font-size: 9px;
+}
+
+button {
+    background: #0078d4;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    margin: 2px 0;
+    width: 100%;
+    transition: background-color 0.2s ease;
+    font-size: 9px;
+    font-weight: 500;
+}
+
+button:hover {
+    background: #106ebe;
+}
+
+/* Toggle button active state */
+button.active {
+    background: #d13438;
+}
+
+button.active:hover {
+    background: #b02a2e;
+}
+
+/* Brush tool cursor */
+.brush-mode-active {
+    cursor: crosshair !important;
+}
+
+.selection-mode-active {
+    cursor: pointer;
+}
+
+.tool-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.export-import {
+    margin-top: 12px;
+}
+
+/* Compass styles */
+#compass {
+    position: fixed;
+    bottom: 20px;
+    left: 80px;
+    width: 60px;
+    height: 60px;
+    background: rgba(42, 42, 42, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    border: 1px solid #4a9eff;
+}
+
+.compass-rose {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border: 2px solid #4a9eff;
+    border-radius: 50%;
+}
+
+.direction {
+    position: absolute;
+    font-size: 10px;
+    font-weight: bold;
+    color: white;
+}
+
+.direction:nth-child(1) { top: -8px; left: 50%; transform: translateX(-50%); } /* N */
+.direction:nth-child(2) { top: 50%; right: -8px; transform: translateY(-50%); } /* E */
+.direction:nth-child(3) { bottom: -8px; left: 50%; transform: translateX(-50%); } /* S */
+.direction:nth-child(4) { top: 50%; left: -8px; transform: translateY(-50%); } /* W */
+
+/* Hierarchy Panel Styles */
+.hierarchy-panel {
+    position: fixed;
+    top: 92px;
+    right: -300px;
+    width: 280px;
+    height: calc(110vh - 110px);
+    background: #1e1e1e;
+    border-left: 1px solid #404040;
+    z-index: 200;
+    transition: right 0.3s ease;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.hierarchy-panel.open {
+    right: 0;
+}
+
+.hierarchy-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #404040;
+    background: #2a2a2a;
+}
+
+.hierarchy-header h3 {
+    margin: 0;
+    color: #e0e0e0;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.hierarchy-close-btn {
+    background: none !important;
+    border: none !important;
+    color: #e0e0e0 !important;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+}
+
+.hierarchy-close-btn:hover {
+    background: #404040 !important;
+    color: #ffffff !important;
+    transform: scale(1.1);
+}
+
+.hierarchy-close-btn.active {
+    background: #404040 !important;
+    color: #ffffff !important;
+}
+
+.hierarchy-close-btn.active:hover {
+    background: #505050 !important;
+    color: #ffffff !important;
+}
+
+.hierarchy-content {
+    padding: 10px 0;
+    overflow-y: auto;
+    height: calc(100% - 60px);
+}
+
+.hierarchy-section {
+    margin-bottom: 10px;
+}
+
+.hierarchy-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    color: #e0e0e0;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-left: 3px solid transparent;
+    font-size: 14px;
+    gap: 8px;
+}
+
+.hierarchy-item:hover {
+    background: #404040;
+    border-left-color: #0078d4;
+}
+
+.hierarchy-item.selected {
+    background: #0078d4;
+    border-left-color: #0078d4;
+}
+
+.hierarchy-expand {
+    margin-right: 8px;
+    font-size: 10px;
+    color: #c0c0c0;
+    transition: transform 0.2s ease;
+    width: 12px;
+    text-align: center;
+}
+
+.hierarchy-item.expanded .hierarchy-expand {
+    transform: rotate(90deg);
+}
+
+.hierarchy-children {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: #1a1a1a;
+}
+
+.hierarchy-children.expanded {
+    max-height: 500px;
+}
+
+.hierarchy-child {
+    display: flex;
+    align-items: center;
+    padding: 8px 20px 8px 40px;
+    color: #c0c0c0;
+    font-size: 13px;
+    border-left: 2px solid transparent;
+    transition: background-color 0.2s;
+    gap: 8px;
+}
+
+.hierarchy-child:hover {
+    background: #2a2a2a;
+    border-left-color: #0078d4;
+}
+
+.hierarchy-child.selected {
+    background: #0078d4;
+    border-left-color: #0078d4;
+    color: white;
+}
+
+.hierarchy-icon {
+    margin-right: 12px;
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.hierarchy-name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.hierarchy-count {
+    background: #0078d4;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    min-width: 24px;
+    text-align: center;
+    margin-left: auto;
+}
+
+.hierarchy-toggle {
+    background: none;
+    border: none;
+    color: #e0e0e0;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-right: 8px;
+    transition: all 0.2s ease;
+    opacity: 0.8;
+    order: -1;
+}
+
+.hierarchy-toggle:hover {
+    opacity: 1;
+    background: #404040;
+}
+
+.hierarchy-toggle.hidden {
+    opacity: 0.3;
+}
+
+.hierarchy-toggle.hidden:hover {
+    opacity: 0.6;
+}
+
+/* Hamburger Menu Button */
+.hamburger-btn {
+    position: fixed;
+    top: 90px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    background: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 6px;
+    cursor: pointer;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    transition: background-color 0.2s;
+}
+
+.hamburger-btn:hover {
+    background: #404040;
+}
+
+.hamburger-line {
+    width: 20px;
+    height: 2px;
+    background: #e0e0e0;
+    transition: transform 0.3s ease;
+}
+
+.hamburger-btn.active .hamburger-line:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 5px);
+}
+
+.hamburger-btn.active .hamburger-line:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger-btn.active .hamburger-line:nth-child(3) {
+    transform: rotate(-45deg) translate(5px, -5px);
+}
+
+/* Adjust compass position when hierarchy is open */
+.hierarchy-panel.open ~ .hamburger-btn {
+    right: 300px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Slider value display */
+input[type="range"] {
+    width: 80%;
+    margin-right: 8px;
+}
+
+span[id$="-value"] {
+    display: inline-block;
+    width: 20px;
+    text-align: right;
+}
+
+/* Tree editor specific styles */
+#tree-editor {
+    background: #1e1e1e;
+}
+
+.edit-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+#delete-tree {
+    background: #d13438;
+}
+
+#delete-tree:hover {
+    background: #b02a2e;
+}
+
+/* Camera Navigation Panel */
+.camera-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.camera-section {
+    border: 1px solid #404040;
+    border-radius: 4px;
+    padding: 8px;
+    background: #1e1e1e;
+}
+
+.camera-section h3 {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    color: #c0c0c0;
+    text-align: center;
+    font-weight: 500;
+}
+
+.camera-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.camera-row {
+    display: flex;
+    gap: 4px;
+}
+
+.camera-btn {
+    width: 32px;
+    height: 32px;
+    background: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    padding: 0;
+    margin: 0;
+    color: #e0e0e0;
+}
+
+.camera-btn:hover {
+    background: #3a3a3a;
+    border-color: #606060;
+    transform: scale(1.05);
+}
+
+.camera-btn:active {
+    transform: scale(0.95);
+}
+
+/* Planting mode buttons */
+.planting-mode-buttons {
+    display: flex;
+    gap: 3px;
+    margin-top: 2px;
+}
+
+.mode-btn {
+    flex: 1;
+    background: #1e1e1e;
+    border: 1px solid #404040;
+    border-radius: 3px;
+    padding: 3px 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 9px;
+    color: #c0c0c0;
+}
+
+.mode-btn:hover {
+    background: #2a2a2a;
+    border-color: #606060;
+}
+
+.mode-btn.active {
+    background: #0078d4;
+    border-color: #0078d4;
+    color: white;
+}
+
+/* Height range styling */
+.height-range {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.height-range input {
+    flex: 1;
+    width: auto;
+}
+
+.height-range span {
+    margin: 0 4px;
+    font-weight: 500;
+    color: #e0e0e0;
+    font-size: 9px;
+}
+
+/* STL Objects List Styles */
+.stl-objects-list {
+    max-height: 120px;
+    overflow-y: auto;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    padding: 6px;
+    background: #1e1e1e;
+}
+
+.stl-object-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px;
+    margin-bottom: 4px;
+    background: #2a2a2a;
+    border-radius: 3px;
+    border: 1px solid #404040;
+}
+
+.stl-object-item:last-child {
+    margin-bottom: 0;
+}
+
+.stl-object-item span {
+    flex: 1;
+    font-size: 11px;
+    color: #e0e0e0;
+    word-break: break-word;
+}
+
+.remove-btn {
+    background: #d13438;
+    color: white;
+    border: none;
+    padding: 3px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 10px;
+    margin-left: 6px;
+    width: auto;
+}
+
+.remove-btn:hover {
+    background: #b02a2e;
+}
+
+/* Rotation Controls Styles */
+.rotation-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.rotation-axis {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rotation-axis label {
+    min-width: 16px;
+    margin-bottom: 0;
+    font-weight: 500;
+    color: #e0e0e0;
+    font-size: 11px;
+}
+
+.rotation-axis input[type="range"] {
+    flex: 1;
+    width: auto;
+    margin-right: 8px;
+}
+
+.rotation-axis input[type="number"] {
+    width: 50px;
+    padding: 3px 6px;
+    border: 1px solid #404040;
+    border-radius: 3px;
+    text-align: center;
+    margin-right: 8px;
+    background: #1e1e1e;
+    color: #e0e0e0;
+    font-size: 11px;
+}
+
+.rotation-axis span {
+    min-width: 35px;
+    text-align: right;
+    font-weight: 500;
+    color: #e0e0e0;
+    font-size: 11px;
+}
+
+/* Position Controls Styles */
+.position-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.position-axis {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.position-axis label {
+    min-width: 16px;
+    margin-bottom: 0;
+    font-weight: 500;
+    color: #e0e0e0;
+    font-size: 11px;
+}
+
+.position-axis input[type="range"] {
+    flex: 1;
+    width: auto;
+    margin-right: 8px;
+}
+
+.position-axis input[type="number"] {
+    width: 100px;
+    padding: 3px 6px;
+    border: 1px solid #404040;
+    border-radius: 3px;
+    text-align: center;
+    margin-right: 8px;
+    background: #1e1e1e;
+    color: #e0e0e0;
+    font-size: 11px;
+}
+
+/* Loading Overlay Styles */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.loading-content {
+    background: #2a2a2a;
+    padding: 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    min-width: 200px;
+    border: 1px solid #404040;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #404040;
+    border-top: 4px solid #0078d4;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 12px;
+}
+
+.loading-text {
+    color: #e0e0e0;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* STL Layers List Styles */
+.stl-layers-list {
+    max-height: 120px;
+    overflow-y: auto;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    padding: 6px;
+    background: #1e1e1e;
+}
+
+.layer-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px;
+    margin-bottom: 4px;
+    background: #2a2a2a;
+    border-radius: 3px;
+    border: 1px solid #404040;
+}
+
+.layer-item:last-child {
+    margin-bottom: 0;
+}
+
+.layer-item span {
+    flex: 1;
+    font-size: 11px;
+    color: #e0e0e0;
+    word-break: break-word;
+}
+
+.layer-toggle {
+    background: #107c10;
+    color: white;
+    border: none;
+    padding: 3px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 10px;
+    margin-left: 6px;
+    width: auto;
+}
+
+.layer-toggle:hover {
+    background: #0e6e0e;
+}
+
+.layer-toggle.hidden {
+    background: #6c757d;
+}
+
+.layer-toggle.hidden:hover {
+    background: #107c10;
+}
+
+/* STL Solids List Styles */
+.stl-solid-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    margin: 4px 0;
+    background: #1e1e1e;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.stl-solid-item:hover {
+    background: #2a2a2a;
+}
+
+.solid-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.solid-name {
+    font-weight: 500;
+    color: #e0e0e0;
+    margin-bottom: 2px;
+    font-size: 11px;
+}
+
+.solid-facets {
+    font-size: 10px;
+    color: #a0a0a0;
+}
+
+.solid-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.load-btn, .load-all-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+    width: auto;
+    margin: 0;
+}
+
+.load-btn {
+    background: #0078d4;
+}
+
+.load-btn:hover {
+    background: #106ebe;
+}
+
+.load-all-btn {
+    background: #107c10;
+}
+
+.load-all-btn:hover {
+    background: #0e6e0e;
+}
+
+/* STL Objects List header */
+#stl-objects-list h4 {
+    margin: 0 0 8px 0;
+    color: #e0e0e0;
+    font-size: 12px;
+    border-bottom: 1px solid #404040;
+    padding-bottom: 4px;
+}
+
+/* Load All Section */
+.load-all-section {
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #1e1e1e;
+    border-radius: 4px;
+    border: 1px solid #404040;
+}
+
+.load-all-section .load-all-btn {
+    width: 100%;
+    background: #0078d4;
+    font-weight: 500;
+}
+
+.load-all-section .load-all-btn:hover {
+    background: #106ebe;
+}
+
+/* STL Category Styles */
+.stl-category {
+    margin-bottom: 12px;
+    border: 1px solid #404040;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #1e1e1e;
+}
+
+.category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #404040;
+    font-weight: 500;
+}
+
+.category-name {
+    color: #e0e0e0;
+    font-size: 12px;
+}
+
+.category-count {
+    color: #a0a0a0;
+    font-size: 10px;
+    margin-left: 6px;
+}
+
+.category-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.load-category-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+    width: auto;
+    margin: 0;
+    background: #0078d4;
+}
+
+.load-category-btn:hover {
+    background: #106ebe;
+}
+
+.category-solids {
+    padding: 8px;
+    background: #1e1e1e;
+}
+
+.category-solids .stl-solid-item {
+    margin: 4px 0;
+    padding: 6px;
+    background: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 3px;
+}
+
+.category-solids .stl-solid-item:hover {
+    background: #3a3a3a;
+}
+
+.category-solids .solid-name {
+    font-size: 10px;
+}
+
+.category-solids .solid-facets {
+    font-size: 9px;
+}
+
+.category-solids .load-btn {
+    padding: 3px 6px;
+    font-size: 9px;
+}
+
+/* Category Controls */
+.category-controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px;
+    background: #1e1e1e;
+    border-radius: 4px;
+    border: 1px solid #404040;
+}
+
+.expand-all-btn, .collapse-all-btn {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 10px;
+    background: #6c757d;
+    margin: 0;
+}
+
+.expand-all-btn:hover, .collapse-all-btn:hover {
+    background: #5a6268;
+}
+
+/* Collapsible Category Styles */
+.category-header {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.category-header:hover {
+    background: #3a3a3a !important;
+}
+
+.category-header.expanded {
+    background: #1e1e1e !important;
+}
+
+.category-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.category-toggle {
+    font-size: 10px;
+    color: #a0a0a0;
+    transition: transform 0.2s ease;
+    min-width: 10px;
+    text-align: center;
+}
+
+.category-header.expanded .category-toggle {
+    transform: rotate(90deg);
+}
+
+/* Animation for category expansion */
+.category-solids {
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.category-solids[style*="display: none"] {
+    max-height: 0;
+    opacity: 0;
+}
+
+.category-solids[style*="display: block"] {
+    max-height: 1000px;
+    opacity: 1;
+} 
+
+/* Special layout for tree panel - all in one row */
+#tree-panel .form-group {
+    display: inline-block;
+    width: auto;
+    margin-right: 6px;
+    margin-bottom: 2px;
+    vertical-align: top;
+    white-space: nowrap;
+}
+
+#tree-panel .form-group:last-child {
+    margin-right: 0;
+}
+
+/* Sun panel - all in one row (same as tree panel) */
+#sun-panel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #2d2d2d;
+    border-radius: 4px;
+    border: 1px solid #404040;
+}
+
+#sun-panel .form-group {
+    display: inline-block;
+    width: auto;
+    margin-right: 6px;
+    margin-bottom: 2px;
+    vertical-align: top;
+    white-space: nowrap;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    color: #e0e0e0;
+}
+
+#sun-panel .form-group:last-child {
+    margin-right: 0;
+}
+
+#sun-panel label {
+    font-size: 7px;
+    margin-bottom: 1px;
+    color: #b0b0b0;
+    white-space: nowrap;
+    min-width: 30px;
+    text-align: center;
+    display: block;
+}
+
+#sun-panel input[type="range"] {
+    width: 80px;
+    height: 14px;
+    background: #1a1a1a;
+    border-radius: 2px;
+    outline: none;
+    margin-right: 2px;
+    font-size: 7px;
+    padding: 1px 2px;
+}
+
+#sun-panel span[id$="-value"] {
+    width: 12px;
+    font-size: 7px;
+    text-align: right;
+    font-weight: 500;
+    color: #e0e0e0;
+}
+
+/* Separators between sun parameter sections */
+#sun-panel .form-group:nth-child(1) {
+    border-right: 1px solid #404040;
+    padding-right: 8px;
+    margin-right: 8px;
+}
+
+#sun-panel .form-group:nth-child(2) {
+    border-right: 1px solid #404040;
+    padding-right: 8px;
+    margin-right: 8px;
+}
+
+#sun-panel .form-group:nth-child(3) {
+    border-right: 1px solid #404040;
+    padding-right: 8px;
+    margin-right: 8px;
+}
+
+/* Location panel - compact single row (same as tree panel) */
+#location-panel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #2d2d2d;
+    border-radius: 4px;
+    border: 1px solid #404040;
+}
+
+#location-panel .form-group {
+    display: inline-block;
+    width: auto;
+    margin-right: 6px;
+    margin-bottom: 2px;
+    vertical-align: top;
+    white-space: nowrap;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    color: #e0e0e0;
+}
+
+#location-panel .form-group:last-child {
+    margin-right: 0;
+}
+
+#location-panel label {
+    font-size: 7px;
+    margin-bottom: 1px;
+    color: #b0b0b0;
+    white-space: nowrap;
+    min-width: 50px;
+    text-align: center;
+    display: block;
+}
+
+#location-panel input[type="range"] {
+    width: 80px;
+    height: 14px;
+    background: #1a1a1a;
+    border-radius: 2px;
+    outline: none;
+    margin-right: 2px;
+    font-size: 7px;
+    padding: 1px 2px;
+}
+
+#location-panel input[type="number"] {
+    width: 60px;
+    font-size: 7px;
+    padding: 1px 2px;
+    border: 1px solid #404040;
+    border-radius: 2px;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    text-align: right;
+    /* Hide default browser arrows */
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+}
+
+/* Hide spinner arrows for webkit browsers */
+#location-panel input[type="number"]::-webkit-outer-spin-button,
+#location-panel input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+#location-panel .separator {
+    width: 1px;
+    height: 20px;
+    background: #404040;
+    margin: 0 4px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Separators between parameter sections */
+#tree-panel .form-group:nth-child(1) {
+    border-right: 1px solid #404040;
+    padding-right: 8px;
+    margin-right: 8px;
+}
+
+#tree-panel .form-group:nth-child(2) {
+    border-right: 1px solid #404040;
+    padding-right: 8px;
+    margin-right: 8px;
+}
+
+#tree-panel .form-group:nth-child(3) {
+    border-right: 1px solid #404040;
+    padding-right: 8px;
+    margin-right: 8px;
+}
+
+#tree-panel #brush-settings {
+    border-right: 1px solid #404040;
+    padding-right: 8px;
+    margin-right: 8px;
+}
+
+#tree-panel #plant-tree {
+    margin-left: 0;
+}
+
+#tree-panel .height-range {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+}
+
+#tree-panel .height-range input {
+    width: 40px;
+    padding: 2px 2px;
+    font-size: 8px;
+}
+
+#tree-panel .height-range span {
+    margin: 0 1px;
+    font-size: 7px;
+}
+
+#tree-panel input[type="color"] {
+    width: 25px;
+    height: 18px;
+    padding: 1px;
+}
+
+#tree-panel .planting-mode-buttons {
+    display: inline-flex;
+    gap: 1px;
+    margin: 0;
+}
+
+#tree-panel .mode-btn {
+    padding: 2px 3px;
+    font-size: 7px;
+    min-width: 30px;
+}
+
+#tree-panel #brush-settings {
+    display: inline-block;
+    margin-left: 4px;
+}
+
+#tree-panel #brush-settings .form-group {
+    display: inline-block;
+    width: auto;
+    margin-right: 4px;
+}
+
+#tree-panel #brush-settings input[type="range"] {
+    width: 40px;
+    margin-right: 1px;
+}
+
+#tree-panel #brush-settings span[id$="-value"] {
+    width: 15px;
+    font-size: 7px;
+}
+
+#tree-panel #brush-density-group {
+    display: inline-block;
+    margin-left: 4px;
+}
+
+#tree-panel #brush-density-group input[type="range"] {
+    width: 40px;
+    margin-right: 1px;
+}
+
+#tree-panel #brush-density-group span[id$="-value"] {
+    width: 15px;
+    font-size: 7px;
+}
+
+#tree-panel .separator {
+    width: 1px;
+    height: 20px;
+    background: #404040;
+    margin: 0 4px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+#tree-panel #plant-tree {
+    display: inline-block;
+    width: auto;
+    padding: 2px 4px;
+    font-size: 7px;
+    margin: 0 0 0 4px;
+}
+
+#tree-panel label {
+    font-size: 7px;
+    margin-bottom: 1px;
+}
+
+#tree-panel input {
+    font-size: 7px;
+    padding: 1px 2px;
+} 
