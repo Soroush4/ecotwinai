@@ -1,335 +1,65 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Digital Twin</title>
-    <link rel="stylesheet" href="styles.css">
+    <meta charset="utf-8">
+    <title>Urban Building Energy Visualization</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/suncalc@1.8.0/suncalc.js"></script>
+    <link href="style.css" rel="stylesheet">
 </head>
 <body>
-    <!-- Main Menu Bar -->
-    <div id="main-menu">
-        <div class="menu-item">
-            <span class="menu-label">File</span>
-            <div class="menu-dropdown">
-                <div class="menu-option has-submenu" id="new-scene">
-                    New Scene
-                    <div class="submenu">
-                        <div class="menu-option" id="new-empty-scene">Empty Scene</div>
-                        <div class="menu-option" id="new-random-scene">Default Scene</div>
-                    </div>
-                </div>
-                <div class="menu-option" id="open-scene">Open Scene...</div>
-                <div class="menu-option" id="import-stl">Import STL File...</div>
-                <div class="menu-option" id="save-scene">Save Scene</div>
+    <div id="map"></div>
+    <div id="menu">
+        <button id="load-geojson">Load GeoJSON</button>
+        <button id="save-geojson">Save GeoJSON</button>
+        <button id="reset">Reset</button>
+        <hr>
+        <div id="tree-creator-menu">
+            <h4>Tree Creator</h4>
+            <button id="tree-mode-multi" class="tree-tool-btn">Add Tree</button>
+            <button id="tree-mode-delete" class="tree-tool-btn">Delete Tree</button>
+            <div class="tree-tool-option">
+                <label for="tree-distance">Distance (m):</label>
+                <input type="number" id="tree-distance" value="10" min="1">
+            </div>
+            <div class="tree-tool-option">
+                <label for="tree-min-height">Min Height:</label>
+                <input type="number" id="tree-min-height" value="5" min="1">
+            </div>
+            <div class="tree-tool-option">
+                <label for="tree-max-height">Max Height:</label>
+                <input type="number" id="tree-max-height" value="15" min="1">
             </div>
         </div>
-        <div class="menu-item">
-            <span class="menu-label">Edit</span>
-            <div class="menu-dropdown">
-                <div class="menu-option" id="undo">Undo</div>
-                <div class="menu-option" id="redo">Redo</div>
-                <div class="menu-separator"></div>
-                <div class="menu-option" id="select-all">Select All</div>
-                <div class="menu-option" id="clear-selection">Clear Selection</div>
-                <div class="menu-separator"></div>
-                <div class="menu-option" id="delete-selected">Delete Selected</div>
+        <hr>
+        <div id="sun-simulation-menu">
+            <h4>Sun Simulation</h4>
+            <div class="sun-tool-option">
+                <label for="sun-month-slider">Month:</label>
+                <input type="range" id="sun-month-slider" class="sun-slider" min="1" max="12" value="6">
+                <input type="number" id="sun-month-input" class="sun-input" min="1" max="12" value="6">
             </div>
-        </div>
-        <div class="menu-item">
-            <span class="menu-label">Settings</span>
-            <div class="menu-dropdown">
-                <div class="menu-option" id="settings-panel-toggle">Preferences</div>
+            <div class="sun-tool-option">
+                <label for="sun-day-slider">Day:</label>
+                <input type="range" id="sun-day-slider" class="sun-slider" min="1" max="31" value="21">
+                <input type="number" id="sun-day-input" class="sun-input" min="1" max="31" value="21">
             </div>
-        </div>
-    </div>
-    
-    <div id="scene-container"></div>
-    
-    <!-- Left sidebar for tools -->
-    <div id="toolbar">
-        <button class="tool-btn" id="select-tool" title="Select Objects">
-            <span class="tool-icon">👆</span>
-            <span class="tool-label">Select</span>
-        </button>
-        <button class="tool-btn" id="tree-tool" title="Plant Trees">
-            <span class="tool-icon">🌳</span>
-            <span class="tool-label">Trees</span>
-        </button>
-        <button class="tool-btn" id="sun-tool" title="Sunlight Simulation">
-            <span class="tool-icon">☀️</span>
-            <span class="tool-label">Sun</span>
-        </button>
-        <button class="tool-btn" id="location-tool" title="Location Settings">
-            <span class="tool-icon">📍</span>
-            <span class="tool-label">Location</span>
-        </button>
-    </div>
-    </div>
-    
-    <!-- Top panel for parameters -->
-    <div id="top-panel">
-        <!-- Tree Planting Panel -->
-        <div class="parameter-panel" id="tree-panel">
-            <div class="form-group">
-                <label for="tree-height-min">Height:</label>
-                <div class="height-range">
-                    <input type="number" id="tree-height-min" min="1" max="50" value="5" placeholder="Min">
-                    <span>-</span>
-                    <input type="number" id="tree-height-max" min="1" max="50" value="15" placeholder="Max">
-                </div>
+            <div class="sun-tool-option">
+                <label for="sun-hour-slider">Hour:</label>
+                <input type="range" id="sun-hour-slider" class="sun-slider" min="0" max="23" value="12">
+                <input type="number" id="sun-hour-input" class="sun-input" min="0" max="23" value="12">
             </div>
-            <div class="form-group">
-                <label for="tree-color">Color:</label>
-                <input type="color" id="tree-color" value="#228B22">
-            </div>
-            <div class="form-group">
-                <label>Mode:</label>
-                <div class="planting-mode-buttons">
-                    <button class="mode-btn active" id="single-mode">Single</button>
-                    <button class="mode-btn" id="brush-mode">Brush</button>
-                </div>
-            </div>
-            <div class="form-group" id="brush-settings" style="display: none;">
-                <label for="brush-distance">Distance:</label>
-                <input type="range" id="brush-distance" min="1" max="20" value="5" step="0.5">
-                <span id="brush-distance-value">5</span>
-            </div>
-            <div class="form-group" id="brush-density-group" style="display: none;">
-                <label for="brush-density">Density:</label>
-                <input type="range" id="brush-density" min="1" max="10" value="3" step="1">
-                <span id="brush-density-value">3</span>
-            </div>
-            <div class="separator"></div>
-            <button id="plant-tree">Plant</button>
-        </div>
-
-        <!-- Sunlight Simulation Panel -->
-        <div class="parameter-panel" id="sun-panel">
-            <div class="form-group">
-                <label for="month">Month:</label>
-                <input type="range" id="month" min="1" max="12" value="7">
-                <span id="month-value">7</span>
-            </div>
-            <div class="form-group">
-                <label for="day">Day:</label>
-                <input type="range" id="day" min="1" max="31" value="15">
-                <span id="day-value">15</span>
-            </div>
-            <div class="form-group">
-                <label for="hour">Hour:</label>
-                <input type="range" id="hour" min="0" max="23" value="12">
-                <span id="hour-value">12</span>
-            </div>
-            <div class="form-group">
-                <label for="minute">Minute:</label>
-                <input type="range" id="minute" min="0" max="59" value="0">
-                <span id="minute-value">0</span>
-            </div>
-        </div>
-
-        <!-- Location Panel -->
-        <div class="parameter-panel" id="location-panel">
-            <div class="form-group">
-                <label for="latitude">Latitude:</label>
-                <input type="range" id="latitude" min="-90" max="90" step="0.000001" value="45.5017">
-                <input type="number" id="latitude-number" min="-90" max="90" step="0.000001" value="45.5017">
-            </div>
-            <div class="separator"></div>
-            <div class="form-group">
-                <label for="longitude">Longitude:</label>
-                <input type="range" id="longitude" min="-180" max="180" step="0.000001" value="-73.5673">
-                <input type="number" id="longitude-number" min="-180" max="180" step="0.000001" value="-73.5673">
-            </div>
-        </div>
-
-        <!-- Scene Tools Panel -->
-        <div class="parameter-panel" id="scene-panel">
-            <div class="tool-buttons">
-                <button id="draw-street">Draw Street</button>
-                <button id="draw-green">Draw Green Space</button>
-            </div>
-            <div class="export-import">
-                <button id="export-scene">Export Scene</button>
-                <input type="file" id="import-scene" accept=".json" style="display: none;">
-                <button id="import-button">Import Scene</button>
-            </div>
-        </div>
-
-
-
-        <!-- Camera Navigation Panel -->
-        <div class="parameter-panel" id="camera-panel">
-            <div class="camera-controls">
-                <div class="camera-section">
-                    <h3>Movement</h3>
-                    <div class="camera-buttons">
-                        <button class="camera-btn" id="move-up" title="Move Up">⬆️</button>
-                        <div class="camera-row">
-                            <button class="camera-btn" id="move-left" title="Move Left">⬅️</button>
-                            <button class="camera-btn" id="move-down" title="Move Down">⬇️</button>
-                            <button class="camera-btn" id="move-right" title="Move Right">➡️</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="camera-section">
-                    <h3>Rotation</h3>
-                    <div class="camera-buttons">
-                        <button class="camera-btn" id="rotate-up" title="Rotate Up">🔄⬆️</button>
-                        <div class="camera-row">
-                            <button class="camera-btn" id="rotate-left" title="Rotate Left">🔄⬅️</button>
-                            <button class="camera-btn" id="rotate-down" title="Rotate Down">🔄⬇️</button>
-                            <button class="camera-btn" id="rotate-right" title="Rotate Right">🔄➡️</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="camera-section">
-                    <h3>Zoom</h3>
-                    <div class="camera-buttons">
-                        <button class="camera-btn" id="zoom-in" title="Zoom In">🔍➕</button>
-                        <button class="camera-btn" id="zoom-out" title="Zoom Out">🔍➖</button>
-                        <button class="camera-btn" id="zoom-extended" title="Zoom Extended">🔍⏫</button>
-                    </div>
-                </div>
-                
-                <div class="camera-section">
-                    <h3>Reset</h3>
-                    <div class="camera-buttons">
-                        <button class="camera-btn" id="reset-camera" title="Reset Camera">🏠</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Settings Panel -->
-        <div class="parameter-panel" id="settings-panel">
-            <div class="form-group">
-                <label for="global-axis-toggle">Show Global Axis:</label>
-                <input type="checkbox" id="global-axis-toggle" checked>
-            </div>
-            <div class="form-group">
-                <label for="grid-toggle">Show Grid:</label>
-                <input type="checkbox" id="grid-toggle" checked>
-            </div>
-            <div class="form-group">
-                <label for="fog-toggle">Enable Fog:</label>
-                <input type="checkbox" id="fog-toggle">
-            </div>
-            <div class="form-group">
-                <label for="fog-distance">Fog Density:</label>
-                <input type="range" id="fog-distance" min="0.0001" max="0.03" value="0.0008" step="0.0001">
-                <span id="fog-distance-value">0.0008</span>
+            <div class="sun-tool-option">
+                <label for="sun-minute-slider">Minute:</label>
+                <input type="range" id="sun-minute-slider" class="sun-slider" min="0" max="59" value="0">
+                <input type="number" id="sun-minute-input" class="sun-input" min="0" max="59" value="0">
             </div>
         </div>
     </div>
-
-    <div id="compass">
-        <div class="compass-rose">
-            <div class="direction">N</div>
-            <div class="direction">E</div>
-            <div class="direction">S</div>
-            <div class="direction">W</div>
-        </div>
-    </div>
-
-    <!-- Hierarchy Panel -->
-    <div id="hierarchy-panel" class="hierarchy-panel">
-        <div class="hierarchy-header">
-            <h3>Scene Hierarchy</h3>
-            <button id="hierarchy-close" class="hierarchy-close-btn" title="Close Hierarchy Panel">✕</button>
-        </div>
-        <div class="hierarchy-content">
-            <div class="hierarchy-section">
-                <div class="hierarchy-item" data-type="ground">
-                    <button class="hierarchy-toggle" title="Toggle Visibility">👁️</button>
-                    <span class="hierarchy-expand">▶</span>
-                    <span class="hierarchy-icon">🌍</span>
-                    <span class="hierarchy-name">Ground</span>
-                    <span class="hierarchy-count">1</span>
-                </div>
-                <div class="hierarchy-children" data-parent="ground">
-                    <div class="hierarchy-child">
-                        <button class="hierarchy-toggle" title="Toggle Visibility">👁️</button>
-                        <span class="hierarchy-icon">🌍</span>
-                        <span class="hierarchy-name">Ground Plane</span>
-                    </div>
-                </div>
-            </div>
-            <div class="hierarchy-section">
-                <div class="hierarchy-item" data-type="buildings">
-                    <button class="hierarchy-toggle" title="Toggle Visibility">👁️</button>
-                    <span class="hierarchy-expand">▶</span>
-                    <span class="hierarchy-icon">🏢</span>
-                    <span class="hierarchy-name">Buildings</span>
-                    <span class="hierarchy-count" id="building-count">0</span>
-                </div>
-                <div class="hierarchy-children" data-parent="buildings">
-                    <!-- Building children will be added dynamically -->
-                </div>
-            </div>
-            <div class="hierarchy-section">
-                <div class="hierarchy-item" data-type="trees">
-                    <button class="hierarchy-toggle" title="Toggle Visibility">👁️</button>
-                    <span class="hierarchy-expand">▶</span>
-                    <span class="hierarchy-icon">🌳</span>
-                    <span class="hierarchy-name">Trees</span>
-                    <span class="hierarchy-count" id="tree-count">0</span>
-                </div>
-                <div class="hierarchy-children" data-parent="trees">
-                    <!-- Tree children will be added dynamically -->
-                </div>
-            </div>
-            <div class="hierarchy-section">
-                <div class="hierarchy-item" data-type="drawings">
-                    <button class="hierarchy-toggle" title="Toggle Visibility">👁️</button>
-                    <span class="hierarchy-expand">▶</span>
-                    <span class="hierarchy-icon">✏️</span>
-                    <span class="hierarchy-name">Drawings</span>
-                    <span class="hierarchy-count" id="drawing-count">0</span>
-                </div>
-                <div class="hierarchy-children" data-parent="drawings">
-                    <!-- Drawing children will be added dynamically -->
-                </div>
-            </div>
-            <div class="hierarchy-section">
-                <div class="hierarchy-item" data-type="stl-objects">
-                    <button class="hierarchy-toggle" title="Toggle Visibility">👁️</button>
-                    <span class="hierarchy-expand">▶</span>
-                    <span class="hierarchy-icon">📦</span>
-                    <span class="hierarchy-name">STL Objects</span>
-                    <span class="hierarchy-count" id="stl-count">0</span>
-                </div>
-                <div class="hierarchy-children" data-parent="stl-objects">
-                    <!-- STL object children will be added dynamically -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Hamburger Menu Button -->
-    <button id="hamburger-menu" class="hamburger-btn">
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
-    </button>
-
-    <!-- Loading Overlay -->
-    <div id="loading-overlay" style="display: none;">
-        <div class="loading-content">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Processing STL file...</div>
-        </div>
-    </div>
-
-    <!-- Three.js and dependencies -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
-    
-    <!-- Main application script -->
-    <script src="app.js"></script>
+    <input type="file" id="file-input" accept=".geojson" style="display: none;">
+    <script src="script.js"></script>
 </body>
-</html> 
+</html>

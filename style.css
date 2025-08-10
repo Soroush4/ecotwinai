@@ -1,0 +1,91 @@
+body {
+    margin: 0;
+    padding: 0;
+}
+
+#map {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+}
+
+#menu {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: white;
+    padding: 10px;
+    border-radius: 5px;
+    z-index: 1;
+}
+
+.mapboxgl-popup-content {
+    font: 400 15px/22px 'Source Sans Pro', 'Helvetica Neue', sans-serif;
+    padding: 10px;
+    width: 250px;
+}
+
+#properties-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#properties-table td {
+    padding: 5px;
+}
+
+#properties-table input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#popup-content {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+#popup-content button {
+    margin-top: 10px;
+}
+
+#tree-creator-menu h4 {
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+.tree-tool-btn {
+    margin-bottom: 5px;
+    width: 100%;
+}
+
+.tree-tool-btn.active {
+    background-color: #3386c0;
+    color: white;
+    border-color: #3386c0;
+}
+
+.tree-tool-option, .sun-tool-option {
+    margin-top: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#tree-creator-menu input[type="number"] {
+    width: 60px;
+}
+
+.sun-tool-option label {
+    flex-basis: 50px; /* Give labels a fixed width */
+    flex-shrink: 0;
+}
+
+.sun-slider {
+    flex-grow: 1;
+    margin: 0 10px;
+}
+
+.sun-input {
+    width: 50px;
+}

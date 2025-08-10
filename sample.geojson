@@ -1,0 +1,68 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "ID": 1,
+        "BuildingType": "Office",
+        "Height": 50,
+        "TotalEnergy": 120
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-74.0060, 40.7128],
+            [-74.0050, 40.7128],
+            [-74.0050, 40.7138],
+            [-74.0060, 40.7138],
+            [-74.0060, 40.7128]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ID": 2,
+        "BuildingType": "Residential",
+        "Height": 20,
+        "TotalEnergy": 60
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-74.0040, 40.7128],
+            [-74.0030, 40.7128],
+            [-74.0030, 40.7138],
+            [-74.0040, 40.7138],
+            [-74.0040, 40.7128]
+          ]
+        ]
+      }
+    },
+    {
+        "type": "Feature",
+        "properties": {
+          "ID": 3,
+          "BuildingType": "Commercial",
+          "Height": 80,
+          "TotalEnergy": 140
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [-74.0060, 40.7148],
+              [-74.0050, 40.7148],
+              [-74.0050, 40.7158],
+              [-74.0060, 40.7158],
+              [-74.0060, 40.7148]
+            ]
+          ]
+        }
+      }
+  ]
+}
