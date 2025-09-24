@@ -21,8 +21,49 @@ let buildingData = { type: 'FeatureCollection', features: [] };
 let treeTrunkData = { type: 'FeatureCollection', features: [] };
 let treeCanopyData = { type: 'FeatureCollection', features: [] };
 let treeIdCounter = 0;
+let energyStats = { min: 0, max: 100, hasEnergyData: false };
 
 // --- Data Handling ---
+
+// Helper function to find height property with different spellings
+function getHeightProperty(properties) {
+    const heightKeys = ['Height', 'height', 'HEIGHT', 'building_height', 'buildingHeight', 'elevation', 'Elevation', 'ELEVATION'];
+    
+    for (const key of heightKeys) {
+        if (properties.hasOwnProperty(key) && properties[key] !== null && properties[key] !== undefined) {
+            return properties[key];
+        }
+    }
+    
+    // Default height if no height property is found
+    return 10; // Default height in feet
+}
+
+// Helper function to calculate energy statistics
+function calculateEnergyStats(features) {
+    const energyValues = [];
+    
+    for (const feature of features) {
+        if (feature.properties && feature.properties.TotalEnergy !== null && feature.properties.TotalEnergy !== undefined) {
+            const energy = parseFloat(feature.properties.TotalEnergy);
+            if (!isNaN(energy)) {
+                energyValues.push(energy);
+            }
+        }
+    }
+    
+    if (energyValues.length > 0) {
+        energyStats.min = Math.min(...energyValues);
+        energyStats.max = Math.max(...energyValues);
+        energyStats.hasEnergyData = true;
+        console.log(`Energy range detected: ${energyStats.min} to ${energyStats.max}`);
+    } else {
+        energyStats.hasEnergyData = false;
+        energyStats.min = 0;
+        energyStats.max = 100;
+        console.log('No TotalEnergy data found, using default range');
+    }
+}
 
 function addGeoJsonToMap(data) {
     const center = turf.center(data).geometry.coordinates;
@@ -50,10 +91,38 @@ function addGeoJsonToMap(data) {
         }
     }
 
+    // Calculate energy statistics for buildings
+    calculateEnergyStats(buildingData.features);
+
     // Update the sources
     map.getSource('geojson-data').setData(buildingData);
     map.getSource('tree-trunks-source').setData(treeTrunkData);
     map.getSource('tree-canopies-source').setData(treeCanopyData);
+
+    // Update the building layer with new color scheme
+    updateBuildingColors();
+}
+
+// Function to update building colors based on energy statistics
+function updateBuildingColors() {
+    if (!map.getLayer('geojson-layer')) return;
+
+    if (energyStats.hasEnergyData) {
+        // Use dynamic color scheme based on actual data range
+        const minEnergy = energyStats.min;
+        const maxEnergy = energyStats.max;
+        const midEnergy = (minEnergy + maxEnergy) / 2;
+
+        map.setPaintProperty('geojson-layer', 'fill-extrusion-color', [
+            'interpolate', ['linear'], ['get', 'TotalEnergy'],
+            minEnergy, 'green',    // Lowest consumption = green
+            midEnergy, 'yellow',   // Medium consumption = yellow
+            maxEnergy, 'red'       // Highest consumption = red
+        ]);
+    } else {
+        // Use default color scheme when no energy data is available
+        map.setPaintProperty('geojson-layer', 'fill-extrusion-color', '#808080'); // Gray
+    }
 }
 
 // --- UI Event Listeners ---
@@ -104,12 +173,14 @@ document.getElementById('reset').addEventListener('click', () => {
     buildingData = { type: 'FeatureCollection', features: [] };
     treeTrunkData = { type: 'FeatureCollection', features: [] };
     treeCanopyData = { type: 'FeatureCollection', features: [] };
+    energyStats = { min: 0, max: 100, hasEnergyData: false };
     map.getSource('geojson-data').setData(buildingData);
     map.getSource('tree-trunks-source').setData(treeTrunkData);
     map.getSource('tree-canopies-source').setData(treeCanopyData);
     treeIdCounter = 0;
     document.getElementById('file-input').value = '';
     setTreeMode(null);
+    updateBuildingColors(); // Reset to default colors
 });
 
 // --- Building Pop-up Logic ---
@@ -242,11 +313,19 @@ map.on('load', () => {
         'type': 'fill-extrusion',
         'source': 'geojson-data',
         'paint': {
-            'fill-extrusion-color': [
-                'interpolate', ['linear'], ['get', 'TotalEnergy'],
-                50, 'green', 100, 'yellow', 150, 'red'
+            'fill-extrusion-color': '#808080', // Default gray color, will be updated dynamically
+            'fill-extrusion-height': [
+                'case',
+                ['has', 'Height'], ['*', ['get', 'Height'], 0.3048],
+                ['has', 'height'], ['*', ['get', 'height'], 0.3048],
+                ['has', 'HEIGHT'], ['*', ['get', 'HEIGHT'], 0.3048],
+                ['has', 'building_height'], ['*', ['get', 'building_height'], 0.3048],
+                ['has', 'buildingHeight'], ['*', ['get', 'buildingHeight'], 0.3048],
+                ['has', 'elevation'], ['*', ['get', 'elevation'], 0.3048],
+                ['has', 'Elevation'], ['*', ['get', 'Elevation'], 0.3048],
+                ['has', 'ELEVATION'], ['*', ['get', 'ELEVATION'], 0.3048],
+                3.048 // Default height of 10 feet in meters
             ],
-            'fill-extrusion-height': ['*', ['get', 'Height'], 0.3048],
             'fill-extrusion-opacity': 1.0,
             'fill-extrusion-base': 0
         }
