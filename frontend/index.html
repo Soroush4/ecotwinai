@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Urban Building Energy Visualization</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/suncalc@1.8.0/suncalc.js"></script>
+    <link href="style.css" rel="stylesheet">
+    
+    <!-- Module Scripts -->
+    <script src="config.js"></script>
+    <script src="modules/utils.js"></script>
+    <script src="modules/core.js"></script>
+    <script src="modules/data.js"></script>
+    <script src="modules/tree.js"></script>
+    <script src="modules/sun.js"></script>
+    <script src="modules/energy-stats.js"></script>
+    <script src="modules/ui.js"></script>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Status Bar -->
+    <div id="status-bar">
+        <div id="status-text">Initializing...</div>
+        <div id="loading-indicator" class="loading-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </div>
+    
+    <div id="menu">
+        <!-- Data Management Section -->
+        <div class="section-header">
+            <span>📊 Data Management</span>
+        </div>
+        <div class="button-row">
+            <button id="load-geojson" class="modern-btn">
+                <span>📁 Load</span>
+            </button>
+            <button id="save-geojson" class="modern-btn secondary">
+                <span>💾 Save</span>
+            </button>
+            <button id="reset" class="modern-btn danger">
+                <span>🔄 Reset</span>
+            </button>
+        </div>
+        
+        <div class="section-divider"></div>
+        
+        <!-- Tree Creator Section -->
+        <div class="section-header">
+            <span>🌳 Tree Creator</span>
+        </div>
+        <div id="tree-creator-menu">
+            <div class="button-row">
+                <button id="tree-mode-multi" class="tree-tool-btn">
+                    <span>➕ Add</span>
+                </button>
+                <button id="tree-mode-delete" class="tree-tool-btn">
+                    <span>🧽 Erase</span>
+                </button>
+                <button id="tree-delete-all" class="tree-tool-btn danger">
+                    <span>🗑️ Delete All</span>
+                </button>
+            </div>
+            
+            <!-- Tree Counter -->
+            <div class="tree-counter">
+                <span class="tree-counter-icon">🌳</span>
+                <span class="tree-counter-label">Trees:</span>
+                <span id="tree-count" class="tree-counter-value">0</span>
+            </div>
+            
+            <div class="tree-params-row">
+                <div class="control-group">
+                    <label for="tree-distance" class="control-label">Distance (m)</label>
+                    <input type="number" id="tree-distance" class="control-input" value="10" min="1" max="50">
+                </div>
+                
+                <div class="control-group">
+                    <label for="tree-min-height" class="control-label">Min Height (m)</label>
+                    <input type="number" id="tree-min-height" class="control-input" value="5" min="1" max="50">
+                </div>
+                
+                <div class="control-group">
+                    <label for="tree-max-height" class="control-label">Max Height (m)</label>
+                    <input type="number" id="tree-max-height" class="control-input" value="15" min="1" max="100">
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-divider"></div>
+        
+        <!-- Energy Statistics Section -->
+        <div class="section-header">
+            <span>📊 Energy Statistics</span>
+        </div>
+        <div id="energy-stats-menu">
+            <!-- Energy Column Selector -->
+            <div class="control-group">
+                <label for="energy-column-selector" class="control-label">Energy Column:</label>
+                <select id="energy-column-selector" class="control-input">
+                    <option value="Energy_UrbanWWR_kWh">Energy UrbanWWR (kWh)</option>
+                    <option value="Energy_ASHRAE_kWh">Energy ASHRAE (kWh)</option>
+                    <option value="TotalEnergy">Total Energy (Legacy)</option>
+                </select>
+            </div>
+            
+            
+            <div class="stats-container">
+                <div class="stats-info">
+                    <div class="stat-item">
+                        <span class="stat-label">Buildings:</span>
+                        <span id="building-count" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Energy Range:</span>
+                        <span id="energy-range" class="stat-value">N/A</span>
+                    </div>
+                </div>
+                
+                <div class="legend-container">
+                    <div class="legend-title">Energy Consumption Legend</div>
+                    <div class="legend-scale-vertical">
+                        <div class="legend-row">
+                            <div class="legend-color very-high"></div>
+                            <span class="legend-label">Very High</span>
+                            <span class="legend-value" id="legend-max-value">100</span>
+                        </div>
+                        <div class="legend-row">
+                            <div class="legend-color high"></div>
+                            <span class="legend-label">High</span>
+                            <span class="legend-value" id="legend-high-value">85</span>
+                        </div>
+                        <div class="legend-row">
+                            <div class="legend-color medium-high"></div>
+                            <span class="legend-label">Medium-High</span>
+                            <span class="legend-value" id="legend-medium-high-value">70</span>
+                        </div>
+                        <div class="legend-row">
+                            <div class="legend-color medium"></div>
+                            <span class="legend-label">Medium</span>
+                            <span class="legend-value" id="legend-medium-value">50</span>
+                        </div>
+                        <div class="legend-row">
+                            <div class="legend-color medium-low"></div>
+                            <span class="legend-label">Medium-Low</span>
+                            <span class="legend-value" id="legend-medium-low-value">30</span>
+                        </div>
+                        <div class="legend-row">
+                            <div class="legend-color low"></div>
+                            <span class="legend-label">Low</span>
+                            <span class="legend-value" id="legend-low-value">15</span>
+                        </div>
+                        <div class="legend-row">
+                            <div class="legend-color very-low"></div>
+                            <span class="legend-label">Very Low</span>
+                            <span class="legend-value" id="legend-min-value">0</span>
+                        </div>
+                    </div>
+                    <div class="legend-values">
+                        <span id="min-energy">0</span>
+                        <span id="max-energy">100</span>
+                    </div>
+                    <div class="legend-info">
+                        <div class="info-item">
+                            <span class="info-label">Average:</span>
+                            <span id="avg-energy" class="info-value">N/A</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Units:</span>
+                            <span class="info-value">kWh/m²</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Dense Range:</span>
+                            <span id="dense-range" class="info-value">N/A</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Dense %:</span>
+                            <span id="dense-percentage" class="info-value">N/A</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-divider"></div>
+        
+        <!-- Sun Simulation Section -->
+        <div class="section-header">
+            <span>☀️ Sun Simulation</span>
+        </div>
+        <div id="sun-simulation-menu">
+            <div class="sun-controls-grid">
+                <div class="control-group">
+                    <label for="sun-month-slider" class="control-label">Month</label>
+                    <div class="range-container">
+                        <input type="range" id="sun-month-slider" class="range-slider" min="1" max="12" value="6">
+                        <input type="number" id="sun-month-input" class="range-input" min="1" max="12" value="6">
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="sun-day-slider" class="control-label">Day</label>
+                    <div class="range-container">
+                        <input type="range" id="sun-day-slider" class="range-slider" min="1" max="31" value="21">
+                        <input type="number" id="sun-day-input" class="range-input" min="1" max="31" value="21">
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="sun-hour-slider" class="control-label">Hour</label>
+                    <div class="range-container">
+                        <input type="range" id="sun-hour-slider" class="range-slider" min="0" max="23" value="12">
+                        <input type="number" id="sun-hour-input" class="range-input" min="0" max="23" value="12">
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="sun-minute-slider" class="control-label">Minute</label>
+                    <div class="range-container">
+                        <input type="range" id="sun-minute-slider" class="range-slider" min="0" max="59" value="0">
+                        <input type="number" id="sun-minute-input" class="range-input" min="0" max="59" value="0">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="file-input" accept=".geojson" style="display: none;">
+    <script src="script.js"></script>
+</body>
+</html>
+
