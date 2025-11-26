@@ -14,6 +14,8 @@ class TreeModule {
         this.brushShape = null; // Current brush shape feature
         this.polygonPoints = []; // Points for custom polygon
         this.isDrawingPolygon = false; // Flag for polygon drawing mode
+        this.deletePolygonPoints = []; // Points for delete polygon
+        this.isDrawingDeletePolygon = false; // Flag for delete polygon drawing mode
     }
 
     /**
@@ -56,10 +58,19 @@ class TreeModule {
         const treeModeMultiBtn = document.getElementById('tree-mode-multi');
         const treeModeBrushBtn = document.getElementById('tree-mode-brush');
         const treeModeDeleteBtn = document.getElementById('tree-mode-delete');
-        const treeCreatorBtns = [treeModeMultiBtn, treeModeBrushBtn, treeModeDeleteBtn];
+        const treeModeDeleteBrushBtn = document.getElementById('tree-mode-delete-brush');
+        const treeCreatorBtns = [treeModeMultiBtn, treeModeBrushBtn, treeModeDeleteBtn, treeModeDeleteBrushBtn];
 
         treeCreatorBtns.forEach(btn => {
-            const btnMode = btn.id.split('-')[2];
+            if (!btn) return;
+            let btnMode;
+            if (btn.id === 'tree-mode-delete-brush') {
+                btnMode = 'delete-brush';
+            } else if (btn.id === 'tree-mode-brush') {
+                btnMode = 'brush';
+            } else {
+                btnMode = btn.id.split('-')[2];
+            }
             if (btnMode === this.currentTreeMode) {
                 btn.classList.add('active');
             } else {
@@ -67,18 +78,27 @@ class TreeModule {
             }
         });
         
-        // Show/hide brush parameters
+        // Show/hide create brush parameters
         const brushParams = document.getElementById('brush-params');
         if (brushParams) {
             brushParams.style.display = this.currentTreeMode === 'brush' ? 'block' : 'none';
         }
         
+        // Show/hide delete brush parameters
+        const deleteBrushParams = document.getElementById('delete-brush-params');
+        if (deleteBrushParams) {
+            deleteBrushParams.style.display = this.currentTreeMode === 'delete-brush' ? 'block' : 'none';
+        }
+        
         // Clear brush shape when mode changes
-        if (this.currentTreeMode !== 'brush') {
+        if (this.currentTreeMode !== 'brush' && this.currentTreeMode !== 'delete-brush') {
             this.clearBrushShape();
             this.cancelPolygon();
-        } else {
+            this.cancelDeletePolygon();
+        } else if (this.currentTreeMode === 'brush') {
             this.updateBrushShapeUI();
+        } else if (this.currentTreeMode === 'delete-brush') {
+            this.updateDeleteBrushShapeUI();
         }
     }
 
@@ -89,12 +109,24 @@ class TreeModule {
         const treeModeMultiBtn = document.getElementById('tree-mode-multi');
         const treeModeBrushBtn = document.getElementById('tree-mode-brush');
         const treeModeDeleteBtn = document.getElementById('tree-mode-delete');
+        const treeModeDeleteBrushBtn = document.getElementById('tree-mode-delete-brush');
         const treeDeleteAllBtn = document.getElementById('tree-delete-all');
-        const treeCreatorBtns = [treeModeMultiBtn, treeModeBrushBtn, treeModeDeleteBtn];
 
-        treeCreatorBtns.forEach(btn => {
-            btn.addEventListener('click', () => this.setTreeMode(btn.id.split('-')[2]));
-        });
+        // Create mode buttons
+        if (treeModeMultiBtn) {
+            treeModeMultiBtn.addEventListener('click', () => this.setTreeMode('multi'));
+        }
+        if (treeModeBrushBtn) {
+            treeModeBrushBtn.addEventListener('click', () => this.setTreeMode('brush'));
+        }
+        
+        // Delete mode buttons
+        if (treeModeDeleteBtn) {
+            treeModeDeleteBtn.addEventListener('click', () => this.setTreeMode('delete'));
+        }
+        if (treeModeDeleteBrushBtn) {
+            treeModeDeleteBrushBtn.addEventListener('click', () => this.setTreeMode('delete-brush'));
+        }
 
         // Delete all trees button
         treeDeleteAllBtn.addEventListener('click', () => {
@@ -106,6 +138,14 @@ class TreeModule {
         if (brushShapeSelector) {
             brushShapeSelector.addEventListener('change', () => {
                 this.updateBrushShapeUI();
+            });
+        }
+        
+        // Delete brush shape selector - update UI immediately on change
+        const deleteBrushShapeSelector = document.getElementById('delete-brush-shape');
+        if (deleteBrushShapeSelector) {
+            deleteBrushShapeSelector.addEventListener('change', () => {
+                this.updateDeleteBrushShapeUI();
             });
         }
 
@@ -134,6 +174,24 @@ class TreeModule {
                     const brushCount = Number(document.getElementById('brush-count').value);
                     this.data.placeTreesInShape(e.lngLat, brushShape, brushSize, brushCount);
                 }
+            } else if (this.currentTreeMode === 'delete-brush') {
+                const deleteBrushShape = document.getElementById('delete-brush-shape').value;
+                
+                if (deleteBrushShape === 'polygon') {
+                    // Handle delete polygon drawing
+                    if (this.isDrawingDeletePolygon) {
+                        // Add point to delete polygon
+                        this.deletePolygonPoints.push([e.lngLat.lng, e.lngLat.lat]);
+                        this.updateDeletePolygonPreview();
+                    } else {
+                        // Start drawing delete polygon
+                        this.startDrawingDeletePolygon(e.lngLat);
+                    }
+                } else {
+                    // Delete trees in shape (circle or square)
+                    const deleteBrushSize = Number(document.getElementById('delete-brush-radius').value);
+                    this.data.deleteTreesInShape(e.lngLat, deleteBrushShape, deleteBrushSize);
+                }
             }
         });
         
@@ -142,6 +200,9 @@ class TreeModule {
             if (this.currentTreeMode === 'brush' && this.isDrawingPolygon) {
                 e.preventDefault();
                 this.finishPolygon();
+            } else if (this.currentTreeMode === 'delete-brush' && this.isDrawingDeletePolygon) {
+                e.preventDefault();
+                this.finishDeletePolygon();
             }
         });
 
@@ -170,6 +231,12 @@ class TreeModule {
             } else if (this.isDrawingPolygon && this.polygonPoints.length > 0) {
                 // Update polygon preview with current mouse position
                 this.updatePolygonPreview(e.lngLat);
+            } else if (this.currentTreeMode === 'delete-brush' && !this.isDrawingDeletePolygon) {
+                // Update delete brush shape preview
+                this.updateDeleteBrushShape(e.lngLat);
+            } else if (this.isDrawingDeletePolygon && this.deletePolygonPoints.length > 0) {
+                // Update delete polygon preview with current mouse position
+                this.updateDeletePolygonPreview(e.lngLat);
             } else if (this.isDragging) {
                 if (this.currentTreeMode === 'multi') {
                     const distance = turf.distance(
@@ -196,15 +263,25 @@ class TreeModule {
                     map.dragPan.enable();
                 }
             }
-            if (this.currentTreeMode !== 'multi' && this.currentTreeMode !== 'delete' && this.currentTreeMode !== 'brush') {
+            if (this.currentTreeMode !== 'multi' && this.currentTreeMode !== 'delete' && this.currentTreeMode !== 'brush' && this.currentTreeMode !== 'delete-brush') {
                 map.dragPan.enable();
             }
         });
         
         // Disable drag pan when brush mode is active
         map.on('mousedown', (e) => {
-            if (this.currentTreeMode === 'brush' && e.originalEvent.button === 0) {
-                map.dragPan.disable();
+            if ((this.currentTreeMode === 'brush' || this.currentTreeMode === 'delete-brush') && e.originalEvent.button === 0) {
+                if (this.currentTreeMode === 'brush') {
+                    const brushShape = document.getElementById('brush-shape')?.value;
+                    if (brushShape !== 'polygon') {
+                        map.dragPan.disable();
+                    }
+                } else if (this.currentTreeMode === 'delete-brush') {
+                    const deleteBrushShape = document.getElementById('delete-brush-shape')?.value;
+                    if (deleteBrushShape !== 'polygon') {
+                        map.dragPan.disable();
+                    }
+                }
             }
         });
 
@@ -535,6 +612,165 @@ class TreeModule {
     cancelPolygon() {
         this.isDrawingPolygon = false;
         this.polygonPoints = [];
+        this.clearBrushShape();
+        
+        const map = this.core.getMap();
+        if (map) {
+            map.getCanvas().style.cursor = '';
+        }
+    }
+
+    /**
+     * Update delete brush shape UI based on selected shape
+     */
+    updateDeleteBrushShapeUI() {
+        const deleteBrushShape = document.getElementById('delete-brush-shape').value;
+        const deleteBrushSizeRow = document.getElementById('delete-brush-size-row');
+        const deleteBrushSizeGroup = document.getElementById('delete-brush-size-group');
+        const deletePolygonControls = document.getElementById('delete-polygon-controls');
+        const deleteBrushSizeLabel = document.getElementById('delete-brush-size-label');
+        
+        if (deleteBrushShape === 'polygon') {
+            if (deleteBrushSizeRow) deleteBrushSizeRow.style.display = 'none';
+            if (deletePolygonControls) deletePolygonControls.style.display = 'block';
+        } else {
+            if (deleteBrushSizeRow) deleteBrushSizeRow.style.display = 'flex';
+            if (deletePolygonControls) deletePolygonControls.style.display = 'none';
+            
+            // Update label text immediately
+            if (deleteBrushSizeLabel) {
+                if (deleteBrushShape === 'circle') {
+                    deleteBrushSizeLabel.textContent = 'Radius (m)';
+                } else if (deleteBrushShape === 'square') {
+                    deleteBrushSizeLabel.textContent = 'Side Length (m)';
+                }
+            }
+            
+            this.cancelDeletePolygon();
+        }
+    }
+
+    /**
+     * Update delete brush shape preview at mouse position
+     * @param {Object} lngLat - Longitude and latitude coordinates
+     */
+    updateDeleteBrushShape(lngLat) {
+        if (this.currentTreeMode !== 'delete-brush' || this.isDrawingDeletePolygon) return;
+        
+        const map = this.core.getMap();
+        if (!map.getSource('brush-circle-source')) return;
+        
+        const deleteBrushShape = document.getElementById('delete-brush-shape').value;
+        const deleteBrushSize = Number(document.getElementById('delete-brush-radius').value);
+        const centerPoint = turf.point([lngLat.lng, lngLat.lat]);
+        
+        let shapeFeature;
+        
+        if (deleteBrushShape === 'circle') {
+            const circle = turf.circle(centerPoint, deleteBrushSize, { units: 'meters', steps: 64 });
+            shapeFeature = {
+                type: 'Feature',
+                geometry: circle.geometry,
+                properties: {}
+            };
+        } else if (deleteBrushShape === 'square') {
+            const halfSize = deleteBrushSize / 2;
+            const latOffset = halfSize / 111320;
+            const lngOffset = halfSize / (111320 * Math.cos(lngLat.lat * Math.PI / 180));
+            
+            const bbox = [
+                lngLat.lng - lngOffset,
+                lngLat.lat - latOffset,
+                lngLat.lng + lngOffset,
+                lngLat.lat + latOffset
+            ];
+            const square = turf.bboxPolygon(bbox);
+            shapeFeature = {
+                type: 'Feature',
+                geometry: square.geometry,
+                properties: {}
+            };
+        } else {
+            return;
+        }
+        
+        this.brushShape = shapeFeature;
+        
+        map.getSource('brush-circle-source').setData({
+            type: 'FeatureCollection',
+            features: [this.brushShape]
+        });
+    }
+
+    /**
+     * Start drawing delete polygon
+     * @param {Object} lngLat - Initial point coordinates
+     */
+    startDrawingDeletePolygon(lngLat) {
+        this.isDrawingDeletePolygon = true;
+        this.deletePolygonPoints = [[lngLat.lng, lngLat.lat]];
+        this.updateDeletePolygonPreview();
+        
+        const map = this.core.getMap();
+        map.getCanvas().style.cursor = 'crosshair';
+    }
+
+    /**
+     * Update delete polygon preview
+     * @param {Object} currentLngLat - Current mouse position (optional)
+     */
+    updateDeletePolygonPreview(currentLngLat = null) {
+        if (this.deletePolygonPoints.length < 2) return;
+        
+        const map = this.core.getMap();
+        if (!map.getSource('brush-circle-source')) return;
+        
+        let points = [...this.deletePolygonPoints];
+        if (currentLngLat) {
+            points.push([currentLngLat.lng, currentLngLat.lat]);
+        }
+        
+        if (points.length >= 3) {
+            points.push(points[0]);
+        }
+        
+        const polygon = turf.polygon([points]);
+        
+        this.brushShape = {
+            type: 'Feature',
+            geometry: polygon.geometry,
+            properties: {}
+        };
+        
+        map.getSource('brush-circle-source').setData({
+            type: 'FeatureCollection',
+            features: [this.brushShape]
+        });
+    }
+
+    /**
+     * Finish delete polygon and delete trees
+     */
+    finishDeletePolygon() {
+        if (this.deletePolygonPoints.length < 3) {
+            alert('Polygon needs at least 3 points');
+            return;
+        }
+        
+        const closedPoints = [...this.deletePolygonPoints, this.deletePolygonPoints[0]];
+        const polygon = turf.polygon([closedPoints]);
+        
+        this.data.deleteTreesInPolygon(polygon);
+        
+        this.cancelDeletePolygon();
+    }
+
+    /**
+     * Cancel delete polygon drawing
+     */
+    cancelDeletePolygon() {
+        this.isDrawingDeletePolygon = false;
+        this.deletePolygonPoints = [];
         this.clearBrushShape();
         
         const map = this.core.getMap();

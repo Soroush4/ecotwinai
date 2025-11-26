@@ -557,11 +557,12 @@ class DataModule {
     placeTreesInPolygon(polygon, count) {
         const minHeight = Number(document.getElementById('tree-min-height').value);
         const maxHeight = Number(document.getElementById('tree-max-height').value);
+        const treeDistance = Number(document.getElementById('brush-tree-distance')?.value || 3); // Minimum distance between trees in meters
         
         // Generate random points within the polygon
         const treesPlaced = [];
         let attempts = 0;
-        const maxAttempts = count * 10; // Prevent infinite loop
+        const maxAttempts = count * 50; // Increased attempts to account for distance checking
         
         while (treesPlaced.length < count && attempts < maxAttempts) {
             attempts++;
@@ -574,16 +575,29 @@ class DataModule {
             
             // Check if point is inside the polygon
             if (turf.booleanPointInPolygon(randomPoint, polygon)) {
-                // Generate random height within range
-                const randomHeight = Math.random() * (maxHeight - minHeight) + minHeight;
+                // Check minimum distance from existing trees
+                let tooClose = false;
+                for (const placedTree of treesPlaced) {
+                    const distance = turf.distance(randomPoint, turf.point(placedTree), { units: 'meters' });
+                    if (distance < treeDistance) {
+                        tooClose = true;
+                        break;
+                    }
+                }
                 
-                // Place tree at this location
-                this.placeTree([randomLng, randomLat], randomHeight);
-                treesPlaced.push([randomLng, randomLat]);
+                // If not too close to other trees, place it
+                if (!tooClose) {
+                    // Generate random height within range
+                    const randomHeight = Math.random() * (maxHeight - minHeight) + minHeight;
+                    
+                    // Place tree at this location
+                    this.placeTree([randomLng, randomLat], randomHeight);
+                    treesPlaced.push([randomLng, randomLat]);
+                }
             }
         }
         
-        console.log(`✓ Placed ${treesPlaced.length} trees in ${polygon.geometry.type} (${count} requested)`);
+        console.log(`✓ Placed ${treesPlaced.length} trees in ${polygon.geometry.type} (${count} requested, min distance: ${treeDistance}m)`);
         return treesPlaced.length;
     }
 
@@ -607,6 +621,82 @@ class DataModule {
         if (window.app && window.app.tree) {
             window.app.tree.updateTreeCounter();
         }
+    }
+
+    /**
+     * Delete trees within a shape (delete brush tool)
+     * @param {Array|Object} centerLngLat - Center coordinates
+     * @param {string} shapeType - Shape type: 'circle' or 'square'
+     * @param {number} size - Size (radius for circle, side length for square) in meters
+     */
+    deleteTreesInShape(centerLngLat, shapeType, size) {
+        const centerCoords = Array.isArray(centerLngLat) ? centerLngLat : [centerLngLat.lng, centerLngLat.lat];
+        const centerPoint = turf.point(centerCoords);
+        
+        let shape;
+        if (shapeType === 'circle') {
+            shape = turf.circle(centerPoint, size, { units: 'meters', steps: 64 });
+        } else if (shapeType === 'square') {
+            const halfSize = size / 2;
+            const latOffset = halfSize / 111320;
+            const lngOffset = halfSize / (111320 * Math.cos(centerCoords[1] * Math.PI / 180));
+            
+            const bbox = [
+                centerCoords[0] - lngOffset,
+                centerCoords[1] - latOffset,
+                centerCoords[0] + lngOffset,
+                centerCoords[1] + latOffset
+            ];
+            shape = turf.bboxPolygon(bbox);
+        } else {
+            console.error('Unknown shape type:', shapeType);
+            return 0;
+        }
+        
+        return this.deleteTreesInPolygon(shape);
+    }
+
+    /**
+     * Delete trees within a polygon
+     * @param {Object} polygon - Turf polygon feature
+     */
+    deleteTreesInPolygon(polygon) {
+        const map = this.core.getMap();
+        let deletedCount = 0;
+        const idsToDelete = new Set();
+        
+        // Check all tree trunks to see if they're inside the polygon
+        this.treeTrunkData.features.forEach(trunk => {
+            const trunkCenter = turf.centroid(trunk);
+            if (turf.booleanPointInPolygon(trunkCenter, polygon)) {
+                idsToDelete.add(trunk.properties.id);
+            }
+        });
+        
+        // Remove trees with matching IDs
+        this.treeTrunkData.features = this.treeTrunkData.features.filter(f => {
+            if (idsToDelete.has(f.properties.id)) {
+                deletedCount++;
+                return false;
+            }
+            return true;
+        });
+        
+        this.treeCanopyData.features = this.treeCanopyData.features.filter(f => {
+            return !idsToDelete.has(f.properties.id);
+        });
+        
+        // Update map sources
+        map.getSource('tree-trunks-source').setData(this.treeTrunkData);
+        map.getSource('tree-canopies-source').setData(this.treeCanopyData);
+        
+        // Update tree counter
+        if (window.app && window.app.tree) {
+            window.app.tree.updateTreeCounter();
+        }
+        
+        console.log(`✓ Deleted ${deletedCount} trees in ${polygon.geometry.type}`);
+        return deletedCount;
     }
 
     /**
