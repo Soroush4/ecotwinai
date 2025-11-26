@@ -345,6 +345,54 @@ class DataModule {
     }
 
     /**
+     * Create a square polygon around a point
+     * @param {Array} center - [lng, lat] coordinates
+     * @param {number} size - Size in meters (half side length)
+     * @returns {Object} Turf polygon feature
+     */
+    createSquare(center, size) {
+        const [lng, lat] = center;
+        const halfSize = size / 2;
+        // Convert meters to degrees (approximate)
+        const latOffset = halfSize / 111320; // 1 degree latitude ≈ 111320 meters
+        const lngOffset = halfSize / (111320 * Math.cos(lat * Math.PI / 180));
+        
+        const bbox = [
+            lng - lngOffset, // min longitude
+            lat - latOffset, // min latitude
+            lng + lngOffset, // max longitude
+            lat + latOffset  // max latitude
+        ];
+        return turf.bboxPolygon(bbox);
+    }
+
+    /**
+     * Create a triangle polygon around a point
+     * @param {Array} center - [lng, lat] coordinates
+     * @param {number} radius - Radius in meters (distance from center to vertices)
+     * @returns {Object} Turf polygon feature
+     */
+    createTriangle(center, radius) {
+        const [lng, lat] = center;
+        // Convert meters to degrees
+        const latOffset = radius / 111320;
+        const lngOffset = radius / (111320 * Math.cos(lat * Math.PI / 180));
+        
+        // Create equilateral triangle (3 vertices)
+        const vertices = [];
+        for (let i = 0; i < 3; i++) {
+            const angle = (i * 2 * Math.PI / 3) - (Math.PI / 2); // Start from top
+            const vertexLng = lng + lngOffset * Math.cos(angle);
+            const vertexLat = lat + latOffset * Math.sin(angle);
+            vertices.push([vertexLng, vertexLat]);
+        }
+        // Close the triangle
+        vertices.push(vertices[0]);
+        
+        return turf.polygon([vertices]);
+    }
+
+    /**
      * Place a tree at the specified location
      * @param {Array|Object} lngLat - Longitude and latitude coordinates
      * @param {number} legacyHeight - Optional legacy height value
@@ -356,40 +404,103 @@ class DataModule {
             return Math.random() * (max - min) + min;
         })();
 
+        const treeType = document.getElementById('tree-type')?.value || 'circle';
         const trunkHeight = totalHeight * 0.4;
         const canopyHeight = totalHeight * 0.6;
-        const trunkRadius = 0.4; // in meters
-        const canopyRadius = 2.5; // in meters
+        
+        // Calculate trunk size based on tree height (2.5% of total height)
+        // With min 0.15m and max 0.8m for realistic proportions
+        const trunkSize = Math.max(0.15, Math.min(0.8, totalHeight * 0.025));
+        
+        // Calculate canopy size based on tree height (18% of total height)
+        // With min 1.0m and max 6.0m for realistic proportions
+        const canopySize = Math.max(1.0, Math.min(6.0, totalHeight * 0.18));
+        
         const treeId = `tree-${this.treeIdCounter++}`;
-
         const pointCoords = Array.isArray(lngLat) ? lngLat : [lngLat.lng, lngLat.lat];
         const point = turf.point(pointCoords);
 
-        // Create Trunk
-        const trunkBuffer = turf.buffer(point, trunkRadius, { units: 'meters' });
-        const trunkFeature = {
-            ...trunkBuffer,
-            properties: {
-                id: treeId,
-                isTrunk: true,
-                height: trunkHeight,
-                base: 0
-            }
-        };
+        // Create Trunk based on tree type
+        let trunkFeature;
+        if (treeType === 'circle') {
+            const trunkBuffer = turf.buffer(point, trunkSize, { units: 'meters' });
+            trunkFeature = {
+                ...trunkBuffer,
+                properties: {
+                    id: treeId,
+                    isTrunk: true,
+                    height: trunkHeight,
+                    base: 0
+                }
+            };
+        } else if (treeType === 'square' || treeType === 'square-trunk-only') {
+            const trunkSquare = this.createSquare(pointCoords, trunkSize * 2);
+            trunkFeature = {
+                ...trunkSquare,
+                properties: {
+                    id: treeId,
+                    isTrunk: true,
+                    height: trunkHeight,
+                    base: 0
+                }
+            };
+        } else if (treeType === 'triangle' || treeType === 'triangle-trunk-only') {
+            const trunkTriangle = this.createTriangle(pointCoords, trunkSize);
+            trunkFeature = {
+                ...trunkTriangle,
+                properties: {
+                    id: treeId,
+                    isTrunk: true,
+                    height: trunkHeight,
+                    base: 0
+                }
+            };
+        }
+        
         this.treeTrunkData.features.push(trunkFeature);
 
-        // Create Canopy
-        const canopyBuffer = turf.buffer(point, canopyRadius, { units: 'meters' });
-        const canopyFeature = {
-            ...canopyBuffer,
-            properties: {
-                id: treeId,
-                isCanopy: true,
-                height: canopyHeight,
-                base: trunkHeight // Place canopy on top of the trunk
+        // Create Canopy (only if not trunk-only types)
+        if (treeType !== 'square-trunk-only' && treeType !== 'triangle-trunk-only') {
+            let canopyFeature;
+            if (treeType === 'circle') {
+                const canopyBuffer = turf.buffer(point, canopySize, { units: 'meters' });
+                canopyFeature = {
+                    ...canopyBuffer,
+                    properties: {
+                        id: treeId,
+                        isCanopy: true,
+                        height: canopyHeight,
+                        base: trunkHeight
+                    }
+                };
+            } else if (treeType === 'square') {
+                const canopySquare = this.createSquare(pointCoords, canopySize * 2);
+                canopyFeature = {
+                    ...canopySquare,
+                    properties: {
+                        id: treeId,
+                        isCanopy: true,
+                        height: canopyHeight,
+                        base: trunkHeight
+                    }
+                };
+            } else if (treeType === 'triangle') {
+                const canopyTriangle = this.createTriangle(pointCoords, canopySize);
+                canopyFeature = {
+                    ...canopyTriangle,
+                    properties: {
+                        id: treeId,
+                        isCanopy: true,
+                        height: canopyHeight,
+                        base: trunkHeight
+                    }
+                };
             }
-        };
-        this.treeCanopyData.features.push(canopyFeature);
+            
+            if (canopyFeature) {
+                this.treeCanopyData.features.push(canopyFeature);
+            }
+        }
 
         // Update both sources
         const map = this.core.getMap();
@@ -400,6 +511,80 @@ class DataModule {
         if (window.app && window.app.tree) {
             window.app.tree.updateTreeCounter();
         }
+    }
+
+    /**
+     * Place multiple trees within a shape (brush tool)
+     * @param {Array|Object} centerLngLat - Center coordinates
+     * @param {string} shapeType - Shape type: 'circle' or 'square'
+     * @param {number} size - Size (radius for circle, side length for square) in meters
+     * @param {number} count - Number of trees to place
+     */
+    placeTreesInShape(centerLngLat, shapeType, size, count) {
+        const centerCoords = Array.isArray(centerLngLat) ? centerLngLat : [centerLngLat.lng, centerLngLat.lat];
+        const centerPoint = turf.point(centerCoords);
+        
+        let shape;
+        if (shapeType === 'circle') {
+            shape = turf.circle(centerPoint, size, { units: 'meters', steps: 64 });
+        } else if (shapeType === 'square') {
+            // Create square: half size in each direction
+            const halfSize = size / 2;
+            // Convert meters to degrees (approximate)
+            const latOffset = halfSize / 111320; // 1 degree latitude ≈ 111320 meters
+            const lngOffset = halfSize / (111320 * Math.cos(centerCoords[1] * Math.PI / 180));
+            
+            const bbox = [
+                centerCoords[0] - lngOffset, // min longitude
+                centerCoords[1] - latOffset, // min latitude
+                centerCoords[0] + lngOffset, // max longitude
+                centerCoords[1] + latOffset  // max latitude
+            ];
+            shape = turf.bboxPolygon(bbox);
+        } else {
+            console.error('Unknown shape type:', shapeType);
+            return 0;
+        }
+        
+        return this.placeTreesInPolygon(shape, count);
+    }
+
+    /**
+     * Place multiple trees within a polygon
+     * @param {Object} polygon - Turf polygon feature
+     * @param {number} count - Number of trees to place
+     */
+    placeTreesInPolygon(polygon, count) {
+        const minHeight = Number(document.getElementById('tree-min-height').value);
+        const maxHeight = Number(document.getElementById('tree-max-height').value);
+        
+        // Generate random points within the polygon
+        const treesPlaced = [];
+        let attempts = 0;
+        const maxAttempts = count * 10; // Prevent infinite loop
+        
+        while (treesPlaced.length < count && attempts < maxAttempts) {
+            attempts++;
+            
+            // Generate random point within bounding box of polygon
+            const bbox = turf.bbox(polygon);
+            const randomLng = bbox[0] + Math.random() * (bbox[2] - bbox[0]);
+            const randomLat = bbox[1] + Math.random() * (bbox[3] - bbox[1]);
+            const randomPoint = turf.point([randomLng, randomLat]);
+            
+            // Check if point is inside the polygon
+            if (turf.booleanPointInPolygon(randomPoint, polygon)) {
+                // Generate random height within range
+                const randomHeight = Math.random() * (maxHeight - minHeight) + minHeight;
+                
+                // Place tree at this location
+                this.placeTree([randomLng, randomLat], randomHeight);
+                treesPlaced.push([randomLng, randomLat]);
+            }
+        }
+        
+        console.log(`✓ Placed ${treesPlaced.length} trees in ${polygon.geometry.type} (${count} requested)`);
+        return treesPlaced.length;
     }
 
     /**

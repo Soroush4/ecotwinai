@@ -62,6 +62,9 @@
                 <button id="tree-mode-multi" class="tree-tool-btn">
                     <span>➕ Add</span>
                 </button>
+                <button id="tree-mode-brush" class="tree-tool-btn">
+                    <span>🖌️ Brush</span>
+                </button>
                 <button id="tree-mode-delete" class="tree-tool-btn">
                     <span>🧽 Erase</span>
                 </button>
@@ -75,6 +78,17 @@
                 <span class="tree-counter-icon">🌳</span>
                 <span class="tree-counter-label">Trees:</span>
                 <span id="tree-count" class="tree-counter-value">0</span>
+            </div>
+            
+            <div class="control-group" style="width: 100%; margin-bottom: 12px;">
+                <label for="tree-type" class="control-label">Tree Type</label>
+                <select id="tree-type" class="control-input">
+                    <option value="circle">Circle (Round)</option>
+                    <option value="square">Square</option>
+                    <option value="triangle">Triangle</option>
+                    <option value="square-trunk-only">Square Trunk Only</option>
+                    <option value="triangle-trunk-only">Triangle Trunk Only</option>
+                </select>
             </div>
             
             <div class="tree-params-row">
@@ -91,6 +105,34 @@
                 <div class="control-group">
                     <label for="tree-max-height" class="control-label">Max Height (m)</label>
                     <input type="number" id="tree-max-height" class="control-input" value="15" min="1" max="100">
+                </div>
+            </div>
+            
+            <!-- Brush Tool Parameters -->
+            <div id="brush-params" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <div class="control-group" style="width: 100%; margin-bottom: 12px;">
+                    <label for="brush-shape" class="control-label">Brush Shape</label>
+                    <select id="brush-shape" class="control-input">
+                        <option value="circle">Circle</option>
+                        <option value="square">Square</option>
+                        <option value="polygon">Polygon</option>
+                    </select>
+                </div>
+                
+                <div class="tree-params-row" id="brush-size-row">
+                    <div class="control-group" id="brush-size-group">
+                        <label for="brush-radius" class="control-label" id="brush-size-label">Radius (m)</label>
+                        <input type="number" id="brush-radius" class="control-input" value="20" min="5" max="100">
+                    </div>
+                    
+                    <div class="control-group" id="brush-count-group">
+                        <label for="brush-count" class="control-label">Tree Count</label>
+                        <input type="number" id="brush-count" class="control-input" value="10" min="1" max="100">
+                    </div>
+                </div>
+                
+                <!-- Polygon drawing controls -->
+                <div id="polygon-controls" style="display: none;">
                 </div>
             </div>
         </div>
