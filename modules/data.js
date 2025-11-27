@@ -59,8 +59,7 @@ class DataModule {
 
         // Update the sources
         map.getSource('geojson-data').setData(this.buildingData);
-        map.getSource('tree-trunks-source').setData(this.treeTrunkData);
-        map.getSource('tree-canopies-source').setData(this.treeCanopyData);
+        this.updateTreeSources(map);
 
         // Update the building layer with new color scheme
         this.updateBuildingColors();
@@ -502,10 +501,14 @@ class DataModule {
             }
         }
 
-        // Update both sources
+        // Update both sources with viewport-based rendering for large datasets
         const map = this.core.getMap();
-        map.getSource('tree-trunks-source').setData(this.treeTrunkData);
-        map.getSource('tree-canopies-source').setData(this.treeCanopyData);
+        this.updateTreeSources(map);
+        
+        // Update billboard source for LOD
+        if (window.app && window.app.tree) {
+            window.app.tree.updateCanopyCentroidsSource(map);
+        }
 
         // Update tree counter if tree module is available
         if (window.app && window.app.tree) {
@@ -697,7 +700,7 @@ class DataModule {
         const treesPlaced = [];
         let attempts = 0;
         const maxAttempts = Math.min(count * 150, maxPossibleTrees * 200); // Limit attempts based on capacity
-        const batchSize = 100; // Process 100 trees per batch
+        const batchSize = 100; // Process 100 trees per batch for smoother updates
         const bbox = turf.bbox(polygon);
         let consecutiveFailures = 0;
         const maxConsecutiveFailures = 2000; // Stop if we can't place trees after many attempts
@@ -752,7 +755,22 @@ class DataModule {
                     }
                 }
                 
-                // Progress update
+                // Update map sources and tree counter after each batch (for real-time updates)
+                if (treesPlaced.length > batchStart) {
+                    const map = this.core.getMap();
+                    if (map && map.getSource('tree-trunks-source') && map.getSource('tree-canopies-source')) {
+                        // Update sources with current data
+                        map.getSource('tree-trunks-source').setData(this.treeTrunkData);
+                        map.getSource('tree-canopies-source').setData(this.treeCanopyData);
+                    }
+                    
+                    // Update tree counter in real-time after each batch
+                    if (window.app && window.app.tree) {
+                        window.app.tree.updateTreeCounter();
+                    }
+                }
+                
+                // Progress update every 500 trees
                 if (treesPlaced.length > 0 && treesPlaced.length % 500 === 0) {
                     const progress = ((treesPlaced.length / count) * 100).toFixed(1);
                     console.log(`Progress: ${treesPlaced.length}/${count} trees (${progress}%) - ${attempts} attempts`);
@@ -799,8 +817,7 @@ class DataModule {
         this.treeTrunkData.features = this.treeTrunkData.features.filter(f => f.properties.id !== idToDelete);
         this.treeCanopyData.features = this.treeCanopyData.features.filter(f => f.properties.id !== idToDelete);
 
-        map.getSource('tree-trunks-source').setData(this.treeTrunkData);
-        map.getSource('tree-canopies-source').setData(this.treeCanopyData);
+        this.updateTreeSources(map);
 
         // Update tree counter if tree module is available
         if (window.app && window.app.tree) {
@@ -872,8 +889,7 @@ class DataModule {
         });
         
         // Update map sources
-        map.getSource('tree-trunks-source').setData(this.treeTrunkData);
-        map.getSource('tree-canopies-source').setData(this.treeCanopyData);
+        this.updateTreeSources(map);
         
         // Update tree counter
         if (window.app && window.app.tree) {
@@ -896,8 +912,7 @@ class DataModule {
 
         const map = this.core.getMap();
         map.getSource('geojson-data').setData(this.buildingData);
-        map.getSource('tree-trunks-source').setData(this.treeTrunkData);
-        map.getSource('tree-canopies-source').setData(this.treeCanopyData);
+        this.updateTreeSources(map);
         this.updateBuildingColors();
 
         // Update tree counter if tree module is available
@@ -945,6 +960,119 @@ class DataModule {
      */
     getBuildingData() {
         return this.buildingData;
+    }
+
+    /**
+     * Update tree sources with viewport-based rendering for performance
+     * Limits the number of trees rendered to prevent Out of Memory errors
+     * @param {Object} map - Mapbox map instance
+     */
+    updateTreeSources(map) {
+        const MAX_RENDERED_TREES = 50000; // Maximum trees to render at once
+        const totalTrees = this.treeTrunkData.features.length;
+        
+        let trunksToRender = this.treeTrunkData.features;
+        let canopiesToRender = this.treeCanopyData.features;
+        
+        // If we have too many trees, use viewport-based filtering
+        if (totalTrees > MAX_RENDERED_TREES) {
+            try {
+                // Get current viewport bounds
+                const bounds = map.getBounds();
+                const bbox = [
+                    bounds.getWest(),
+                    bounds.getSouth(),
+                    bounds.getEast(),
+                    bounds.getNorth()
+                ];
+                
+                // Filter trees within viewport
+                const viewportPolygon = turf.bboxPolygon(bbox);
+                const visibleTrunkIds = new Set();
+                
+                // Sample trees: take every Nth tree to stay within limit
+                const sampleRate = Math.ceil(totalTrees / MAX_RENDERED_TREES);
+                let sampledCount = 0;
+                
+                for (let i = 0; i < trunksToRender.length && sampledCount < MAX_RENDERED_TREES; i += sampleRate) {
+                    const trunk = trunksToRender[i];
+                    const trunkCenter = turf.centroid(trunk);
+                    
+                    // Check if tree is in viewport or close to it
+                    if (turf.booleanPointInPolygon(trunkCenter, viewportPolygon)) {
+                        visibleTrunkIds.add(trunk.properties.id);
+                        sampledCount++;
+                    }
+                }
+                
+                // If we still have space, add trees near viewport
+                if (sampledCount < MAX_RENDERED_TREES) {
+                    const expandedBbox = turf.bbox(turf.buffer(viewportPolygon, 0.01, { units: 'degrees' }));
+                    const expandedPolygon = turf.bboxPolygon(expandedBbox);
+                    
+                    for (let i = 0; i < trunksToRender.length && sampledCount < MAX_RENDERED_TREES; i++) {
+                        if (visibleTrunkIds.has(trunksToRender[i].properties.id)) continue;
+                        
+                        const trunk = trunksToRender[i];
+                        const trunkCenter = turf.centroid(trunk);
+                        
+                        if (turf.booleanPointInPolygon(trunkCenter, expandedPolygon)) {
+                            visibleTrunkIds.add(trunk.properties.id);
+                            sampledCount++;
+                        }
+                    }
+                }
+                
+                // Filter trunks and canopies based on visible IDs
+                trunksToRender = trunksToRender.filter(t => visibleTrunkIds.has(t.properties.id));
+                canopiesToRender = canopiesToRender.filter(c => visibleTrunkIds.has(c.properties.id));
+                
+                console.log(`Rendering ${trunksToRender.length} of ${totalTrees} trees (viewport-based optimization)`);
+            } catch (error) {
+                console.warn('Error in viewport filtering, using simple sampling:', error);
+                // Fallback: simple sampling
+                const sampleRate = Math.ceil(totalTrees / MAX_RENDERED_TREES);
+                trunksToRender = trunksToRender.filter((_, i) => i % sampleRate === 0);
+                const visibleIds = new Set(trunksToRender.map(t => t.properties.id));
+                canopiesToRender = canopiesToRender.filter(c => visibleIds.has(c.properties.id));
+            }
+        }
+        
+        // Update sources with filtered data
+        if (map.getSource('tree-trunks-source')) {
+            map.getSource('tree-trunks-source').setData({
+                type: 'FeatureCollection',
+                features: trunksToRender
+            });
+        }
+        
+        if (map.getSource('tree-canopies-source')) {
+            map.getSource('tree-canopies-source').setData({
+                type: 'FeatureCollection',
+                features: canopiesToRender
+            });
+        }
+        
+        // Update billboard source if tree module is available
+        if (window.app && window.app.tree) {
+            window.app.tree.updateCanopyCentroidsSource(map);
+        }
+    }
+    
+    /**
+     * Get tree trunk data
+     * @returns {Object} Tree trunk GeoJSON data
+     */
+    getTreeTrunkData() {
+        return this.treeTrunkData;
+    }
+    
+    /**
+     * Get tree canopy data
+     * @returns {Object} Tree canopy GeoJSON data
+     */
+    getTreeCanopyData() {
+        return this.treeCanopyData;
     }
 
     /**

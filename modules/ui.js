@@ -40,16 +40,7 @@ class UIModule {
         document.getElementById('file-input').addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    this.data.addGeoJsonToMap(data);
-                } catch (error) {
-                    alert("Error parsing GeoJSON file: " + error.message);
-                }
-            };
-            reader.readAsText(file);
+            this.loadDataWithProgress(file);
         });
 
         document.getElementById('save-geojson').addEventListener('click', () => {
@@ -274,10 +265,10 @@ class UIModule {
      * @param {string} text - Progress text
      */
     updateProgress(percent, text) {
-        const progressContainer = document.getElementById('save-progress-container');
-        const progressFill = document.getElementById('save-progress-fill');
-        const progressText = document.getElementById('save-progress-text');
-        const progressPercent = document.getElementById('save-progress-percent');
+        const progressContainer = document.getElementById('progress-container');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+        const progressPercent = document.getElementById('progress-percent');
         
         if (progressContainer && progressFill && progressText && progressPercent) {
             progressFill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
@@ -290,7 +281,7 @@ class UIModule {
      * Show progress bar
      */
     showProgress() {
-        const progressContainer = document.getElementById('save-progress-container');
+        const progressContainer = document.getElementById('progress-container');
         if (progressContainer) {
             progressContainer.style.display = 'block';
         }
@@ -300,9 +291,90 @@ class UIModule {
      * Hide progress bar
      */
     hideProgress() {
-        const progressContainer = document.getElementById('save-progress-container');
+        const progressContainer = document.getElementById('progress-container');
         if (progressContainer) {
             progressContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * Load data with progress indicator for large files
+     * @param {File} file - File to load
+     */
+    async loadDataWithProgress(file) {
+        const loadBtn = document.getElementById('load-geojson');
+        const originalText = loadBtn.innerHTML;
+        
+        try {
+            // Disable button and show progress
+            loadBtn.disabled = true;
+            loadBtn.innerHTML = '<span>⏳ Loading...</span>';
+            this.showProgress();
+            this.updateProgress(0, 'Reading file...');
+            
+            // Read file with progress
+            const fileSize = file.size;
+            const reader = new FileReader();
+            
+            return new Promise((resolve, reject) => {
+                reader.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 50; // 0-50% for file reading
+                        this.updateProgress(percent, `Reading file... (${(e.loaded / 1024 / 1024).toFixed(2)} MB)`);
+                    }
+                };
+                
+                reader.onload = async (e) => {
+                    try {
+                        this.updateProgress(60, 'Parsing JSON...');
+                        await new Promise(resolve => setTimeout(resolve, 0)); // Allow UI update
+                        
+                        const data = JSON.parse(e.target.result);
+                        const featureCount = data.features ? data.features.length : 0;
+                        
+                        this.updateProgress(70, `Processing ${featureCount} features...`);
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                        
+                        this.updateProgress(80, 'Adding to map...');
+                        this.data.addGeoJsonToMap(data);
+                        
+                        this.updateProgress(100, 'Complete!');
+                        loadBtn.innerHTML = '<span>✓ Loaded!</span>';
+                        
+                        setTimeout(() => {
+                            loadBtn.disabled = false;
+                            loadBtn.innerHTML = originalText;
+                            this.hideProgress();
+                        }, 1000);
+                        
+                        resolve();
+                    } catch (error) {
+                        alert("Error parsing GeoJSON file: " + error.message);
+                        loadBtn.disabled = false;
+                        loadBtn.innerHTML = originalText;
+                        this.hideProgress();
+                        reject(error);
+                    }
+                };
+                
+                reader.onerror = (error) => {
+                    alert("Error reading file: " + error.message);
+                    loadBtn.disabled = false;
+                    loadBtn.innerHTML = originalText;
+                    this.hideProgress();
+                    reject(error);
+                };
+                
+                // Start reading
+                reader.readAsText(file);
+            });
+            
+        } catch (error) {
+            console.error('Error loading data:', error);
+            alert(`Error loading data: ${error.message}`);
+            loadBtn.disabled = false;
+            loadBtn.innerHTML = originalText;
+            this.hideProgress();
         }
     }
 

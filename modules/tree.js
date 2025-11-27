@@ -313,37 +313,149 @@ class TreeModule {
             return;
         }
 
-        // Add sources for tree parts
-        map.addSource('tree-trunks-source', {
-            type: 'geojson',
-            data: this.data.getTreeTrunkData()
-        });
-        map.addSource('tree-canopies-source', {
-            type: 'geojson',
-            data: this.data.getTreeCanopyData()
-        });
+        // Check if sources already exist to avoid duplicate errors
+        if (!map.getSource('tree-trunks-source')) {
+            map.addSource('tree-trunks-source', {
+                type: 'geojson',
+                data: this.data.getTreeTrunkData()
+            });
+        }
+        
+        if (!map.getSource('tree-canopies-source')) {
+            map.addSource('tree-canopies-source', {
+                type: 'geojson',
+                data: this.data.getTreeCanopyData()
+            });
+        }
+        
+        // Create source for canopy centroids (for billboard LOD)
+        // Delay to ensure function is available
+        setTimeout(() => {
+            if (this.updateCanopyCentroidsSource) {
+                this.updateCanopyCentroidsSource(map);
+            }
+        }, 0);
 
-        // Add layer for tree trunks
-        map.addLayer({
-            'id': 'tree-trunks-layer',
-            'type': 'fill-extrusion',
-            'source': 'tree-trunks-source',
-            'paint': {
-                'fill-extrusion-color': '#8B4513', // Brown
-                'fill-extrusion-height': ['get', 'height'],
-                'fill-extrusion-base': ['get', 'base']
+        // LOD Level 1: Full 3D trees (trunk + canopy) - High zoom (zoom > 15)
+        if (!map.getLayer('tree-trunks-layer')) {
+            map.addLayer({
+                'id': 'tree-trunks-layer',
+                'type': 'fill-extrusion',
+                'source': 'tree-trunks-source',
+                'minzoom': 15,
+                'maxzoom': 24,
+                'paint': {
+                    'fill-extrusion-color': '#8B4513', // Brown
+                    'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-base': ['get', 'base'],
+                    'fill-extrusion-opacity': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        15, 0,
+                        15.5, 1.0,
+                        24, 1.0
+                    ]
+                }
+            });
+        }
+
+        if (!map.getLayer('tree-canopies-layer')) {
+            map.addLayer({
+                'id': 'tree-canopies-layer',
+                'type': 'fill-extrusion',
+                'source': 'tree-canopies-source',
+                'minzoom': 15,
+                'maxzoom': 24,
+                'paint': {
+                    'fill-extrusion-color': '#008000', // Green
+                    'fill-extrusion-height': ['+', ['get', 'base'], ['get', 'height']],
+                    'fill-extrusion-base': ['get', 'base'],
+                    'fill-extrusion-opacity': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        15, 0,
+                        15.5, 1.0,
+                        24, 1.0
+                    ]
+                }
+            });
+        }
+        
+        // LOD Level 2: Billboard canopies (face to camera) - Medium zoom (12-15)
+        // Create canvas image for tree icon
+        this.createTreeIcon(map);
+        
+        // Only add billboard layer if source exists
+        if (!map.getLayer('tree-canopies-billboard-layer')) {
+            // Create source for billboard if it doesn't exist
+            if (!map.getSource('tree-canopies-billboard-source')) {
+                this.updateCanopyCentroidsSource(map);
+            }
+            
+            // Wait a bit for source to be ready
+            setTimeout(() => {
+                if (map.getSource('tree-canopies-billboard-source') && !map.getLayer('tree-canopies-billboard-layer')) {
+                    try {
+                        map.addLayer({
+                            'id': 'tree-canopies-billboard-layer',
+                            'type': 'symbol',
+                            'source': 'tree-canopies-billboard-source',
+                            'minzoom': 12,
+                            'maxzoom': 15,
+                            'layout': {
+                                'icon-image': 'tree-icon',
+                                'icon-size': [
+                                    'interpolate',
+                                    ['linear'],
+                                    ['zoom'],
+                                    12, 0.3,
+                                    15, 0.8
+                                ],
+                                'icon-allow-overlap': true,
+                                'icon-ignore-placement': true
+                            },
+                            'paint': {
+                                'icon-opacity': [
+                                    'interpolate',
+                                    ['linear'],
+                                    ['zoom'],
+                                    12, 0,
+                                    12.5, 0.8,
+                                    14.5, 0.8,
+                                    15, 0
+                                ]
+                            }
+                        });
+                    } catch (error) {
+                        console.warn('Could not add billboard layer:', error);
+                    }
+                }
+            }, 100);
+        }
+        
+        // Mark layers as setup
+        this.layersSetup = true;
+        
+        // Update tree rendering when map moves (for viewport-based rendering)
+        map.on('moveend', () => {
+            if (this.data && this.data.treeTrunkData && this.data.treeTrunkData.features.length > 50000) {
+                this.data.updateTreeSources(map);
+            }
+            // Update billboard source when map moves
+            if (this.updateCanopyCentroidsSource) {
+                this.updateCanopyCentroidsSource(map);
             }
         });
-
-        // Add layer for tree canopies
-        map.addLayer({
-            'id': 'tree-canopies-layer',
-            'type': 'fill-extrusion',
-            'source': 'tree-canopies-source',
-            'paint': {
-                'fill-extrusion-color': '#008000', // Green
-                'fill-extrusion-height': ['+', ['get', 'base'], ['get', 'height']],
-                'fill-extrusion-base': ['get', 'base']
+        
+        map.on('zoomend', () => {
+            if (this.data && this.data.treeTrunkData && this.data.treeTrunkData.features.length > 50000) {
+                this.data.updateTreeSources(map);
+            }
+            // Update billboard source when zoom changes
+            if (this.updateCanopyCentroidsSource) {
+                this.updateCanopyCentroidsSource(map);
             }
         });
 
@@ -786,6 +898,207 @@ class TreeModule {
         const map = this.core.getMap();
         if (map) {
             map.getCanvas().style.cursor = '';
+        }
+    }
+
+    /**
+     * Create tree icon for billboard LOD
+     * @param {Object} map - Mapbox map instance
+     */
+    createTreeIcon(map) {
+        if (!map) return;
+        
+        // Check if icon already exists
+        if (map.hasImage('tree-icon')) {
+            return;
+        }
+        
+        try {
+            // Create canvas for tree icon (green circle)
+            const size = 64;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw green circle with gradient
+            const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+            gradient.addColorStop(0, '#00cc00');
+            gradient.addColorStop(0.7, '#008000');
+            gradient.addColorStop(1, '#004d00');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Add to map as image
+            map.loadImage(canvas.toDataURL(), (error, image) => {
+                if (error) {
+                    console.warn('Error loading tree icon:', error);
+                    return;
+                }
+                if (!map.hasImage('tree-icon')) {
+                    map.addImage('tree-icon', image);
+                }
+            });
+        } catch (error) {
+            console.warn('Error creating tree icon:', error);
+        }
+    }
+
+    /**
+     * Update canopy centroids source for billboard LOD
+     * Optimized for large datasets with viewport-based filtering and sampling
+     * @param {Object} map - Mapbox map instance
+     */
+    updateCanopyCentroidsSource(map) {
+        if (!map || !this.data) return;
+        
+        try {
+            const canopies = this.data.getTreeCanopyData().features;
+            const totalCanopies = canopies.length;
+            const MAX_BILLBOARD_TREES = 10000; // Maximum billboards to render
+            
+            let centroids;
+            
+            // For very large datasets, use viewport-based filtering and sampling
+            if (totalCanopies > MAX_BILLBOARD_TREES) {
+                try {
+                    // Get current viewport bounds
+                    const bounds = map.getBounds();
+                    const bbox = [
+                        bounds.getWest(),
+                        bounds.getSouth(),
+                        bounds.getEast(),
+                        bounds.getNorth()
+                    ];
+                    
+                    const viewportPolygon = turf.bboxPolygon(bbox);
+                    const expandedBbox = turf.bbox(turf.buffer(viewportPolygon, 0.02, { units: 'degrees' }));
+                    const expandedPolygon = turf.bboxPolygon(expandedBbox);
+                    
+                    // Sample rate based on total count
+                    const sampleRate = Math.ceil(totalCanopies / MAX_BILLBOARD_TREES);
+                    const visibleCentroids = [];
+                    let processed = 0;
+                    
+                    // Process in chunks to prevent blocking
+                    for (let i = 0; i < canopies.length && visibleCentroids.length < MAX_BILLBOARD_TREES; i += sampleRate) {
+                        const canopy = canopies[i];
+                        try {
+                            // Quick bbox check before centroid calculation
+                            const canopyBbox = turf.bbox(canopy);
+                            const canopyCenter = [
+                                (canopyBbox[0] + canopyBbox[2]) / 2,
+                                (canopyBbox[1] + canopyBbox[3]) / 2
+                            ];
+                            
+                            // Check if center is in expanded viewport
+                            if (canopyCenter[0] >= expandedBbox[0] && canopyCenter[0] <= expandedBbox[2] &&
+                                canopyCenter[1] >= expandedBbox[1] && canopyCenter[1] <= expandedBbox[3]) {
+                                
+                                const center = turf.centroid(canopy);
+                                visibleCentroids.push({
+                                    type: 'Feature',
+                                    geometry: center.geometry,
+                                    properties: {
+                                        id: canopy.properties.id,
+                                        height: canopy.properties.height,
+                                        base: canopy.properties.base
+                                    }
+                                });
+                            }
+                        } catch (error) {
+                            // Skip this canopy if error
+                            continue;
+                        }
+                        
+                        processed++;
+                        
+                        // For very large datasets, process in smaller batches
+                        // Note: We can't use await in non-async function, so we'll process all at once
+                        // but limit the total number processed
+                        if (visibleCentroids.length >= MAX_BILLBOARD_TREES) {
+                            break;
+                        }
+                    }
+                    
+                    centroids = visibleCentroids;
+                    console.log(`Billboard LOD: ${centroids.length} of ${totalCanopies} trees (viewport-based)`);
+                } catch (error) {
+                    console.warn('Error in viewport filtering for billboards, using simple sampling:', error);
+                    // Fallback: simple sampling
+                    const sampleRate = Math.ceil(totalCanopies / MAX_BILLBOARD_TREES);
+                    centroids = canopies
+                        .filter((_, i) => i % sampleRate === 0)
+                        .slice(0, MAX_BILLBOARD_TREES)
+                        .map(canopy => {
+                            try {
+                                const center = turf.centroid(canopy);
+                                return {
+                                    type: 'Feature',
+                                    geometry: center.geometry,
+                                    properties: {
+                                        id: canopy.properties.id,
+                                        height: canopy.properties.height,
+                                        base: canopy.properties.base
+                                    }
+                                };
+                            } catch (error) {
+                                return null;
+                            }
+                        })
+                        .filter(c => c !== null);
+                }
+            } else {
+                // For smaller datasets, process all canopies
+                centroids = canopies.map(canopy => {
+                    try {
+                        const center = turf.centroid(canopy);
+                        return {
+                            type: 'Feature',
+                            geometry: center.geometry,
+                            properties: {
+                                id: canopy.properties.id,
+                                height: canopy.properties.height,
+                                base: canopy.properties.base
+                            }
+                        };
+                    } catch (error) {
+                        return null;
+                    }
+                }).filter(c => c !== null);
+            }
+            
+            const sourceId = 'tree-canopies-billboard-source';
+            if (map.getSource(sourceId)) {
+                map.getSource(sourceId).setData({
+                    type: 'FeatureCollection',
+                    features: centroids
+                });
+            } else {
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: centroids
+                    }
+                });
+            }
+        } catch (error) {
+            console.warn('Error updating canopy centroids source:', error);
+            // Create empty source to prevent errors
+            const sourceId = 'tree-canopies-billboard-source';
+            if (!map.getSource(sourceId)) {
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: []
+                    }
+                });
+            }
         }
     }
 }
