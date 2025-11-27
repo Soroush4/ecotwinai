@@ -559,46 +559,231 @@ class DataModule {
         const maxHeight = Number(document.getElementById('tree-max-height').value);
         const treeDistance = Number(document.getElementById('brush-tree-distance')?.value || 3); // Minimum distance between trees in meters
         
-        // Generate random points within the polygon
+        // Calculate polygon area in square meters
+        const polygonArea = turf.area(polygon); // Returns area in square meters
+        
+        // Calculate maximum possible trees based on area and tree distance
+        // Each tree needs approximately a circle with radius = treeDistance/2
+        // Area per tree ≈ π * (treeDistance/2)^2
+        const areaPerTree = Math.PI * Math.pow(treeDistance / 2, 2);
+        const maxPossibleTrees = Math.floor(polygonArea / areaPerTree);
+        
+        // Use the minimum of requested count and maximum possible
+        const actualCount = Math.min(count, maxPossibleTrees);
+        
+        if (count > maxPossibleTrees) {
+            console.warn(`⚠ Requested ${count} trees, but polygon can only fit ${maxPossibleTrees} trees (area: ${polygonArea.toFixed(2)} m², distance: ${treeDistance}m). Limiting to ${maxPossibleTrees} trees.`);
+        } else {
+            console.log(`Placing ${actualCount} trees in polygon (area: ${polygonArea.toFixed(2)} m², max capacity: ${maxPossibleTrees} trees)`);
+        }
+        
+        // Use grid-based spatial indexing for efficient distance checking
+        const gridSize = treeDistance * 2; // Grid cell size in meters (slightly larger than min distance)
+        const grid = new Map(); // Grid: "lng,lat" -> array of tree points in that cell
+        
+        // Helper function to convert meters to degrees at given latitude
+        const metersToDegrees = (meters, lat) => {
+            const latDegrees = meters / 111320;
+            const lngDegrees = meters / (111320 * Math.cos(lat * Math.PI / 180));
+            return { lat: latDegrees, lng: lngDegrees };
+        };
+        
+        // Helper function to get grid key for a point
+        const getGridKey = (lng, lat) => {
+            const deg = metersToDegrees(gridSize, lat);
+            const gridLng = Math.floor(lng / deg.lng);
+            const gridLat = Math.floor(lat / deg.lat);
+            return `${gridLng},${gridLat}`;
+        };
+        
+        // Helper function to get neighboring grid cells
+        const getNeighborKeys = (lng, lat) => {
+            const deg = metersToDegrees(gridSize, lat);
+            const gridLng = Math.floor(lng / deg.lng);
+            const gridLat = Math.floor(lat / deg.lat);
+            const keys = [];
+            for (let dlng = -1; dlng <= 1; dlng++) {
+                for (let dlat = -1; dlat <= 1; dlat++) {
+                    keys.push(`${gridLng + dlng},${gridLat + dlat}`);
+                }
+            }
+            return keys;
+        };
+        
+        // Use async batch processing for large counts to prevent UI blocking
+        if (actualCount > 1000) {
+            return this.placeTreesInPolygonAsync(polygon, actualCount, minHeight, maxHeight, treeDistance, grid, getGridKey, getNeighborKeys, maxPossibleTrees);
+        }
+        
+        // Synchronous processing for smaller counts
+        return this.placeTreesInPolygonSync(polygon, actualCount, minHeight, maxHeight, treeDistance, grid, getGridKey, getNeighborKeys, maxPossibleTrees);
+    }
+
+    /**
+     * Synchronous tree placement (for counts <= 1000)
+     */
+    placeTreesInPolygonSync(polygon, count, minHeight, maxHeight, treeDistance, grid, getGridKey, getNeighborKeys, maxPossibleTrees) {
         const treesPlaced = [];
         let attempts = 0;
-        const maxAttempts = count * 50; // Increased attempts to account for distance checking
+        const maxAttempts = Math.min(count * 100, maxPossibleTrees * 150); // Limit attempts based on capacity
         
-        while (treesPlaced.length < count && attempts < maxAttempts) {
+        const bbox = turf.bbox(polygon);
+        let consecutiveFailures = 0;
+        const maxConsecutiveFailures = 1000; // Stop if we can't place trees after many attempts
+        
+        while (treesPlaced.length < count && attempts < maxAttempts && consecutiveFailures < maxConsecutiveFailures) {
             attempts++;
             
-            // Generate random point within bounding box of polygon
-            const bbox = turf.bbox(polygon);
             const randomLng = bbox[0] + Math.random() * (bbox[2] - bbox[0]);
             const randomLat = bbox[1] + Math.random() * (bbox[3] - bbox[1]);
             const randomPoint = turf.point([randomLng, randomLat]);
             
-            // Check if point is inside the polygon
             if (turf.booleanPointInPolygon(randomPoint, polygon)) {
-                // Check minimum distance from existing trees
                 let tooClose = false;
-                for (const placedTree of treesPlaced) {
-                    const distance = turf.distance(randomPoint, turf.point(placedTree), { units: 'meters' });
-                    if (distance < treeDistance) {
-                        tooClose = true;
-                        break;
+                const neighborKeys = getNeighborKeys(randomLng, randomLat);
+                
+                for (const key of neighborKeys) {
+                    const cellTrees = grid.get(key);
+                    if (cellTrees) {
+                        for (const placedTree of cellTrees) {
+                            const distance = turf.distance(randomPoint, turf.point(placedTree), { units: 'meters' });
+                            if (distance < treeDistance) {
+                                tooClose = true;
+                                break;
+                            }
+                        }
+                        if (tooClose) break;
                     }
                 }
                 
-                // If not too close to other trees, place it
                 if (!tooClose) {
-                    // Generate random height within range
                     const randomHeight = Math.random() * (maxHeight - minHeight) + minHeight;
-                    
-                    // Place tree at this location
                     this.placeTree([randomLng, randomLat], randomHeight);
                     treesPlaced.push([randomLng, randomLat]);
+                    
+                    const gridKey = getGridKey(randomLng, randomLat);
+                    if (!grid.has(gridKey)) {
+                        grid.set(gridKey, []);
+                    }
+                    grid.get(gridKey).push([randomLng, randomLat]);
+                    consecutiveFailures = 0; // Reset failure counter
+                } else {
+                    consecutiveFailures++;
                 }
+            } else {
+                consecutiveFailures++;
             }
         }
         
-        console.log(`✓ Placed ${treesPlaced.length} trees in ${polygon.geometry.type} (${count} requested, min distance: ${treeDistance}m)`);
+        // Check if we stopped because area is full
+        if (treesPlaced.length < count && consecutiveFailures >= maxConsecutiveFailures) {
+            console.log(`✓ Area is full. Placed ${treesPlaced.length} trees (${count} requested, max capacity: ${maxPossibleTrees}, min distance: ${treeDistance}m)`);
+        } else {
+            console.log(`✓ Placed ${treesPlaced.length} trees (${count} requested, min distance: ${treeDistance}m, attempts: ${attempts})`);
+        }
+        
+        // Update tree counter
+        if (window.app && window.app.tree) {
+            window.app.tree.updateTreeCounter();
+        }
+        
         return treesPlaced.length;
+    }
+
+    /**
+     * Async batch processing for large counts (prevents UI blocking)
+     */
+    async placeTreesInPolygonAsync(polygon, count, minHeight, maxHeight, treeDistance, grid, getGridKey, getNeighborKeys, maxPossibleTrees) {
+        const treesPlaced = [];
+        let attempts = 0;
+        const maxAttempts = Math.min(count * 150, maxPossibleTrees * 200); // Limit attempts based on capacity
+        const batchSize = 100; // Process 100 trees per batch
+        const bbox = turf.bbox(polygon);
+        let consecutiveFailures = 0;
+        const maxConsecutiveFailures = 2000; // Stop if we can't place trees after many attempts
+        
+        console.log(`Starting async placement of ${count} trees (max capacity: ${maxPossibleTrees})...`);
+        
+        return new Promise((resolve) => {
+            const processBatch = () => {
+                const batchStart = treesPlaced.length;
+                
+                while (treesPlaced.length < batchStart + batchSize && treesPlaced.length < count && attempts < maxAttempts && consecutiveFailures < maxConsecutiveFailures) {
+                    attempts++;
+                    
+                    const randomLng = bbox[0] + Math.random() * (bbox[2] - bbox[0]);
+                    const randomLat = bbox[1] + Math.random() * (bbox[3] - bbox[1]);
+                    const randomPoint = turf.point([randomLng, randomLat]);
+                    
+                    if (turf.booleanPointInPolygon(randomPoint, polygon)) {
+                        let tooClose = false;
+                        const neighborKeys = getNeighborKeys(randomLng, randomLat);
+                        
+                        for (const key of neighborKeys) {
+                            const cellTrees = grid.get(key);
+                            if (cellTrees) {
+                                for (const placedTree of cellTrees) {
+                                    const distance = turf.distance(randomPoint, turf.point(placedTree), { units: 'meters' });
+                                    if (distance < treeDistance) {
+                                        tooClose = true;
+                                        break;
+                                    }
+                                }
+                                if (tooClose) break;
+                            }
+                        }
+                        
+                        if (!tooClose) {
+                            const randomHeight = Math.random() * (maxHeight - minHeight) + minHeight;
+                            this.placeTree([randomLng, randomLat], randomHeight);
+                            treesPlaced.push([randomLng, randomLat]);
+                            
+                            const gridKey = getGridKey(randomLng, randomLat);
+                            if (!grid.has(gridKey)) {
+                                grid.set(gridKey, []);
+                            }
+                            grid.get(gridKey).push([randomLng, randomLat]);
+                            consecutiveFailures = 0; // Reset failure counter
+                        } else {
+                            consecutiveFailures++;
+                        }
+                    } else {
+                        consecutiveFailures++;
+                    }
+                }
+                
+                // Progress update
+                if (treesPlaced.length > 0 && treesPlaced.length % 500 === 0) {
+                    const progress = ((treesPlaced.length / count) * 100).toFixed(1);
+                    console.log(`Progress: ${treesPlaced.length}/${count} trees (${progress}%) - ${attempts} attempts`);
+                }
+                
+                // Continue processing or finish
+                if (treesPlaced.length >= count || attempts >= maxAttempts || consecutiveFailures >= maxConsecutiveFailures) {
+                    // Check if we stopped because area is full
+                    if (treesPlaced.length < count && consecutiveFailures >= maxConsecutiveFailures) {
+                        console.log(`✓ Area is full. Placed ${treesPlaced.length} trees (${count} requested, max capacity: ${maxPossibleTrees}, min distance: ${treeDistance}m)`);
+                    } else if (treesPlaced.length < count) {
+                        console.warn(`⚠ Could only place ${treesPlaced.length} out of ${count} requested trees. Try reducing tree count, increasing brush size, or decreasing tree distance.`);
+                    } else {
+                        console.log(`✓ Placed ${treesPlaced.length} trees (${count} requested, min distance: ${treeDistance}m, attempts: ${attempts})`);
+                    }
+                    
+                    // Update tree counter
+                    if (window.app && window.app.tree) {
+                        window.app.tree.updateTreeCounter();
+                    }
+                    
+                    resolve(treesPlaced.length);
+                } else {
+                    // Process next batch asynchronously
+                    setTimeout(processBatch, 0);
+                }
+            };
+            
+            // Start processing
+            processBatch();
+        });
     }
 
     /**

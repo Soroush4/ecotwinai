@@ -600,7 +600,17 @@ class TreeModule {
         const polygon = turf.polygon([closedPoints]);
         
         const brushCount = Number(document.getElementById('brush-count').value);
-        this.data.placeTreesInPolygon(polygon, brushCount);
+        
+        // Handle async placement for large counts
+        const result = this.data.placeTreesInPolygon(polygon, brushCount);
+        if (result instanceof Promise) {
+            result.then(() => {
+                // Update tree counter after async completion
+                if (window.app && window.app.tree) {
+                    window.app.tree.updateTreeCounter();
+                }
+            });
+        }
         
         // Reset polygon drawing
         this.cancelPolygon();
