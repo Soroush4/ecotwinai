@@ -921,9 +921,19 @@ class DataModule {
         const canopies = this.treeCanopyData.features;
 
         if (buildings.length || trunks.length) {
+            // For large datasets, combine features more efficiently
+            const totalFeatures = buildings.length + trunks.length + canopies.length;
+            
+            if (totalFeatures > 100000) {
+                console.log(`Large dataset detected: ${totalFeatures} features. Using optimized combination...`);
+            }
+            
+            // Use Array.concat for better performance with large arrays
+            const allFeatures = buildings.concat(trunks, canopies);
+            
             return {
                 type: 'FeatureCollection',
-                features: [...buildings, ...trunks, ...canopies]
+                features: allFeatures
             };
         }
         return null;

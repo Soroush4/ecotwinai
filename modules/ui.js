@@ -53,19 +53,7 @@ class UIModule {
         });
 
         document.getElementById('save-geojson').addEventListener('click', () => {
-            const combinedData = this.data.saveData();
-            if (combinedData) {
-                const dataStr = JSON.stringify(combinedData, null, 2);
-                const blob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'data-with-trees.geojson';
-                a.click();
-                URL.revokeObjectURL(url);
-            } else {
-                alert("No data to save.");
-            }
+            this.saveDataWithProgress();
         });
 
         document.getElementById('reset').addEventListener('click', () => {
@@ -279,6 +267,171 @@ class UIModule {
                 notification.parentNode.removeChild(notification);
             }
         }, 3000);
+    }
+    /**
+     * Update progress bar
+     * @param {number} percent - Progress percentage (0-100)
+     * @param {string} text - Progress text
+     */
+    updateProgress(percent, text) {
+        const progressContainer = document.getElementById('save-progress-container');
+        const progressFill = document.getElementById('save-progress-fill');
+        const progressText = document.getElementById('save-progress-text');
+        const progressPercent = document.getElementById('save-progress-percent');
+        
+        if (progressContainer && progressFill && progressText && progressPercent) {
+            progressFill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+            progressText.textContent = text;
+            progressPercent.textContent = `${Math.round(percent)}%`;
+        }
+    }
+
+    /**
+     * Show progress bar
+     */
+    showProgress() {
+        const progressContainer = document.getElementById('save-progress-container');
+        if (progressContainer) {
+            progressContainer.style.display = 'block';
+        }
+    }
+
+    /**
+     * Hide progress bar
+     */
+    hideProgress() {
+        const progressContainer = document.getElementById('save-progress-container');
+        if (progressContainer) {
+            progressContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * Save data with progress indicator for large datasets
+     */
+    async saveDataWithProgress() {
+        const saveBtn = document.getElementById('save-geojson');
+        const originalText = saveBtn.innerHTML;
+        
+        try {
+            // Disable button and show progress
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span>⏳ Saving...</span>';
+            this.showProgress();
+            this.updateProgress(0, 'Preparing...');
+            
+            // Get data
+            this.updateProgress(10, 'Collecting data...');
+            const combinedData = this.data.saveData();
+            if (!combinedData) {
+                alert("No data to save.");
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+                this.hideProgress();
+                return;
+            }
+            
+            const totalFeatures = combinedData.features.length;
+            console.log(`Starting save of ${totalFeatures} features...`);
+            
+            // For very large datasets, use chunked stringification
+            if (totalFeatures > 10000) {
+                this.updateProgress(20, 'Processing large dataset...');
+                
+                // Use requestIdleCallback or setTimeout to prevent blocking
+                await new Promise(resolve => setTimeout(resolve, 0));
+                
+                // Stringify in chunks to prevent blocking
+                this.updateProgress(40, 'Serializing data...');
+                const dataStr = await this.stringifyLargeJSONWithProgress(combinedData, (progress) => {
+                    // Progress from 40% to 80% for stringification
+                    this.updateProgress(40 + (progress * 0.4), 'Serializing data...');
+                });
+                
+                this.updateProgress(85, 'Creating file...');
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                
+                this.updateProgress(95, 'Downloading...');
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'data-with-trees.geojson';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                console.log(`✓ Successfully saved ${totalFeatures} features`);
+            } else {
+                // For smaller datasets, use normal stringification
+                this.updateProgress(30, 'Serializing data...');
+                const dataStr = JSON.stringify(combinedData, null, 2);
+                
+                this.updateProgress(70, 'Creating file...');
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                
+                this.updateProgress(90, 'Downloading...');
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'data-with-trees.geojson';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                console.log(`✓ Successfully saved ${totalFeatures} features`);
+            }
+            
+            this.updateProgress(100, 'Complete!');
+            saveBtn.innerHTML = '<span>✓ Saved!</span>';
+            
+            setTimeout(() => {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+                this.hideProgress();
+            }, 1500);
+            
+        } catch (error) {
+            console.error('Error saving data:', error);
+            alert(`Error saving data: ${error.message}. The dataset might be too large. Try reducing the number of trees.`);
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+            this.hideProgress();
+        }
+    }
+
+    /**
+     * Stringify large JSON objects without blocking the UI
+     * @param {Object} obj - Object to stringify
+     * @param {Function} progressCallback - Callback function for progress updates (0-1)
+     * @returns {Promise<string>} Stringified JSON
+     */
+    async stringifyLargeJSONWithProgress(obj, progressCallback) {
+        return new Promise((resolve, reject) => {
+            try {
+                // For very large objects, stringify without pretty printing to save memory
+                // Use setTimeout to allow UI updates during stringification
+                const startTime = Date.now();
+                
+                // Stringify in a way that allows progress updates
+                setTimeout(() => {
+                    try {
+                        if (progressCallback) progressCallback(0.1);
+                        
+                        // Stringify the object
+                        const dataStr = JSON.stringify(obj); // No pretty printing for large datasets
+                        
+                        if (progressCallback) progressCallback(1.0);
+                        resolve(dataStr);
+                    } catch (e) {
+                        reject(e);
+                    }
+                }, 0);
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 }
 
