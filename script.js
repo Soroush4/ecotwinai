@@ -11,6 +11,7 @@ let app = {
     sun: null,
     energyStats: null,
     ui: null,
+    stlExporter: null,
     isInitialized: false
 };
 
@@ -73,6 +74,7 @@ async function initializeApplication() {
         // Initialize data module
         updateStatus('Initializing data module...', true);
         app.data = new DataModule(app.core);
+        app.data.updateBuildingCounter(); // Initialize building counter
         updateStatus('Data module ready', false);
         console.log('✓ Data module initialized');
 
@@ -104,6 +106,13 @@ async function initializeApplication() {
         app.ui.initialize();
         updateStatus('UI module ready', false);
         console.log('✓ UI module initialized');
+
+        // Initialize STL Exporter module
+        updateStatus('Initializing STL exporter module...', true);
+        app.stlExporter = new STLExporterModule(app.core, app.data);
+        app.stlExporter.initialize();
+        updateStatus('STL exporter module ready', false);
+        console.log('✓ STL exporter module initialized');
 
         // Setup map load event - initialize modules that need map layers here
         const map = app.core.getMap();
@@ -139,6 +148,14 @@ async function initializeApplication() {
         
         // Make app globally accessible for modules
         window.app = app;
+        
+        // Setup delete buildings button after everything is ready
+        setTimeout(() => {
+            if (typeof window.setupDeleteBuildingsButton === 'function') {
+                console.log('Setting up delete buildings button...');
+                window.setupDeleteBuildingsButton();
+            }
+        }, 1000);
         
     } catch (error) {
         console.error('Failed to initialize application:', error);

@@ -119,8 +119,33 @@ class UIModule {
             }
         });
 
+        // Add source for roads (LineString features)
+        map.addSource('roads-source', {
+            type: 'geojson',
+            data: this.data.getRoadData()
+        });
+
+        // Add layer for roads
+        map.addLayer({
+            'id': 'roads-layer',
+            'type': 'line',
+            'source': 'roads-source',
+            'paint': {
+                'line-color': '#666666', // Gray color for roads
+                'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 1,
+                    15, 2,
+                    20, 4
+                ],
+                'line-opacity': 0.8
+            }
+        });
+
         this.layersSetup = true;
-        console.log('✓ UI layers setup complete');
+        console.log('✓ UI layers setup complete (buildings + roads)');
     }
 
     /**

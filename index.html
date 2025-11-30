@@ -20,6 +20,7 @@
     <script src="modules/sun.js"></script>
     <script src="modules/energy-stats.js"></script>
     <script src="modules/ui.js"></script>
+    <script src="modules/stl-exporter.js"></script>
 </head>
 <body>
     <div id="map"></div>
@@ -167,6 +168,20 @@
                 </button>
             </div>
             
+            <!-- STL Export Button -->
+            <div class="section-subheader" style="margin-top: 12px; margin-bottom: 8px;">
+                <span>Export</span>
+            </div>
+            <div class="control-group" style="width: 100%; margin-bottom: 12px;">
+                <label for="stl-start-number" class="control-label">Start Number:</label>
+                <input type="number" id="stl-start-number" class="control-input" value="1" min="0" step="1">
+            </div>
+            <div class="button-row">
+                <button id="export-stl-trees" class="tree-tool-btn" style="width: 100%;">
+                    <span>📦 Export to STL</span>
+                </button>
+            </div>
+            
             <!-- Delete Brush Tool Parameters -->
             <div id="delete-brush-params" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
                 <div class="control-group" style="width: 100%; margin-bottom: 12px;">
@@ -219,6 +234,13 @@
                         <span class="stat-label">Energy Range:</span>
                         <span id="energy-range" class="stat-value">N/A</span>
                     </div>
+                </div>
+                
+                <!-- Delete All Buildings Button -->
+                <div class="button-row" style="margin-top: 12px;">
+                    <button id="delete-all-buildings" class="modern-btn danger" style="width: 100%;">
+                        <span>🗑️ Delete All Buildings</span>
+                    </button>
                 </div>
                 
                 <div class="legend-container">

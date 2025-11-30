@@ -9,6 +9,7 @@ class DataModule {
         this.buildingData = { type: 'FeatureCollection', features: [] };
         this.treeTrunkData = { type: 'FeatureCollection', features: [] };
         this.treeCanopyData = { type: 'FeatureCollection', features: [] };
+        this.roadData = { type: 'FeatureCollection', features: [] }; // LineString features (roads)
         this.treeIdCounter = 0;
         this.energyStats = { min: 0, max: 100, hasEnergyData: false };
         this.energyStatsModule = null;
@@ -37,47 +38,146 @@ class DataModule {
         this.buildingData.features = [];
         this.treeTrunkData.features = [];
         this.treeCanopyData.features = [];
+        this.roadData.features = [];
 
         // Separate features into buildings and trees
-        for (const feature of data.features) {
+        // Logic: 
+        // - If feature has isCanopy property → Tree canopy
+        // - If feature has isTrunk property → Tree trunk
+        // - Otherwise (Polygon without isCanopy/isTrunk) → Building
+        console.log('=== Processing GeoJSON features ===');
+        console.log('Total features in file:', data.features.length);
+        
+        let buildingCount = 0;
+        let treeTrunkCount = 0;
+        let treeCanopyCount = 0;
+        let pointCount = 0;
+        let roadCount = 0;
+        let otherCount = 0;
+        
+        for (let i = 0; i < data.features.length; i++) {
+            const feature = data.features[i];
+            
             if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
                 if (feature.properties.isCanopy) {
                     this.treeCanopyData.features.push(feature);
+                    treeCanopyCount++;
+                    if (i < 5) console.log(`Feature ${i}: Tree canopy (isCanopy=true)`);
                 } else if (feature.properties.isTrunk) {
                     this.treeTrunkData.features.push(feature);
+                    treeTrunkCount++;
+                    if (i < 5) console.log(`Feature ${i}: Tree trunk (isTrunk=true)`);
                 } else {
+                    // This is a building (Polygon without isCanopy/isTrunk properties)
                     this.buildingData.features.push(feature);
+                    buildingCount++;
+                    if (i < 5) {
+                        console.log(`Feature ${i}: Building detected`);
+                        console.log(`  - Properties:`, Object.keys(feature.properties));
+                        console.log(`  - Has isCanopy:`, feature.properties.isCanopy);
+                        console.log(`  - Has isTrunk:`, feature.properties.isTrunk);
+                    }
+                }
+            } else if (feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString') {
+                // Roads/streets - add to road data
+                this.roadData.features.push(feature);
+                roadCount++;
+                if (i < 5) {
+                    console.log(`Feature ${i}: Road/LineString detected`);
+                    console.log(`  - Highway type:`, feature.properties.highway);
+                    console.log(`  - Name:`, feature.properties.name);
                 }
             } else if (feature.geometry.type === 'Point') {
                 // Legacy support for old tree format (convert to new format)
                 this.placeTree(feature.geometry.coordinates, feature.properties.height);
+                pointCount++;
+                if (i < 5) console.log(`Feature ${i}: Point (legacy tree)`);
+            } else {
+                otherCount++;
+                if (i < 5) console.log(`Feature ${i}: Other type (${feature.geometry.type})`);
             }
         }
+        
+        console.log('=== Feature Classification Summary ===');
+        console.log(`Buildings: ${buildingCount}`);
+        console.log(`Tree Trunks: ${treeTrunkCount}`);
+        console.log(`Tree Canopies: ${treeCanopyCount}`);
+        console.log(`Roads (LineString): ${roadCount}`);
+        console.log(`Points (legacy trees): ${pointCount}`);
+        console.log(`Other types: ${otherCount}`);
+        console.log(`Total processed: ${buildingCount + treeTrunkCount + treeCanopyCount + roadCount + pointCount + otherCount}`);
 
-        // Calculate energy statistics for buildings
+        // Calculate energy statistics for buildings (will be empty)
         this.energyStats = UtilsModule.calculateEnergyStats(this.buildingData.features, this.selectedEnergyColumn);
 
         // Update the sources
-        map.getSource('geojson-data').setData(this.buildingData);
+        console.log('=== Updating Map Sources ===');
+        console.log('Building data to set:', {
+            type: this.buildingData.type,
+            featureCount: this.buildingData.features.length
+        });
+        
+        const buildingSource = map.getSource('geojson-data');
+        if (buildingSource) {
+            console.log('✓ geojson-data source exists');
+            console.log('Current source data:', {
+                type: buildingSource._data?.type,
+                featureCount: buildingSource._data?.features?.length || 0
+            });
+            
+            buildingSource.setData(this.buildingData);
+            
+            console.log('Source data after setData:', {
+                type: buildingSource._data?.type,
+                featureCount: buildingSource._data?.features?.length || 0
+            });
+        } else {
+            console.error('❌ geojson-data source not found!');
+        }
+        
+        // Update road source
+        this.updateRoadSource(map);
+        
         this.updateTreeSources(map);
 
         // Update the building layer with new color scheme
+        console.log('=== Updating Building Layer ===');
+        const buildingLayer = map.getLayer('geojson-layer');
+        if (buildingLayer) {
+            console.log('✓ geojson-layer found');
+            console.log('Layer source:', buildingLayer.source);
+        } else {
+            console.warn('⚠ geojson-layer not found');
+        }
+        
         this.updateBuildingColors();
+        console.log('✓ Building colors updated');
 
         // Update tree counter if tree module is available
         if (window.app && window.app.tree) {
             window.app.tree.updateTreeCounter();
         }
 
+        // Update building counter
+        this.updateBuildingCounter();
+
         // Log loading information
         const loadedBuildingsCount = this.buildingData.features.length;
         const loadedTreesCount = this.treeTrunkData.features.length;
         const loadedCanopiesCount = this.treeCanopyData.features.length;
+        const loadedRoadsCount = this.roadData.features.length;
         
-        console.log(`✓ GeoJSON loaded: ${loadedBuildingsCount} buildings, ${loadedTreesCount} trees`);
+        console.log(`✓ GeoJSON loaded: ${loadedBuildingsCount} buildings, ${loadedTreesCount} trees, ${loadedRoadsCount} roads`);
+        console.log(`  - Buildings: Polygon features without isCanopy/isTrunk properties`);
+        console.log(`  - Trees: Features with isCanopy or isTrunk properties`);
+        console.log(`  - Roads: LineString features`);
         
         if (loadedTreesCount > 0) {
             console.log(`✓ Tree data: ${loadedTreesCount} trunks, ${loadedCanopiesCount} canopies`);
+        }
+        
+        if (loadedRoadsCount > 0) {
+            console.log(`✓ Road data: ${loadedRoadsCount} road segments loaded`);
         }
 
         // Notify energy statistics module
@@ -91,7 +191,15 @@ class DataModule {
      */
     updateBuildingColors() {
         const map = this.core.getMap();
-        if (!map.getLayer('geojson-layer')) return;
+        const layer = map.getLayer('geojson-layer');
+        
+        if (!layer) {
+            console.warn('updateBuildingColors: geojson-layer not found');
+            return;
+        }
+        
+        console.log('updateBuildingColors: Layer found, updating colors...');
+        console.log('Current building count:', this.buildingData.features.length);
 
         if (this.energyStats.hasEnergyData) {
             // Use dynamic color scheme based on actual data range
@@ -901,17 +1009,100 @@ class DataModule {
     }
 
     /**
+     * Delete all buildings (keep trees)
+     */
+    deleteAllBuildings() {
+        console.log('=== deleteAllBuildings START ===');
+        console.log('Current building count:', this.buildingData.features.length);
+        console.log('Building data before delete:', this.buildingData);
+        
+        // Store count for verification
+        const beforeCount = this.buildingData.features.length;
+        
+        // Clear building data
+        this.buildingData = { type: 'FeatureCollection', features: [] };
+        this.energyStats = { min: 0, max: 100, hasEnergyData: false };
+        
+        console.log('Building data after clear:', this.buildingData);
+        console.log('Building count after clear:', this.buildingData.features.length);
+
+        const map = this.core.getMap();
+        if (!map) {
+            console.error('❌ Map not available');
+            return;
+        }
+        console.log('✓ Map is available');
+        
+        // Check if source exists
+        const source = map.getSource('geojson-data');
+        if (source) {
+            console.log('✓ geojson-data source found');
+            console.log('Source data before update:', source._data);
+            
+            // Update source
+            source.setData(this.buildingData);
+            
+            console.log('Source data after update:', source._data);
+            console.log('Source features count:', source._data?.features?.length || 0);
+            
+            // Verify layer exists
+            const layer = map.getLayer('geojson-layer');
+            if (layer) {
+                console.log('✓ geojson-layer found');
+                console.log('Layer source:', layer.source);
+            } else {
+                console.warn('⚠ geojson-layer not found');
+            }
+        } else {
+            console.error('❌ geojson-data source not found');
+            console.log('Available sources:', Object.keys(map.getStyle().sources || {}));
+        }
+        
+        // Update building colors
+        console.log('Updating building colors...');
+        this.updateBuildingColors();
+        console.log('✓ Building colors updated');
+
+        // Update building counter
+        console.log('Updating building counter...');
+        this.updateBuildingCounter();
+        console.log('✓ Building counter updated');
+
+        // Notify energy statistics module
+        if (this.energyStatsModule) {
+            console.log('Notifying energy stats module...');
+            this.energyStatsModule.updateStats();
+            console.log('✓ Energy stats module notified');
+        } else {
+            console.warn('⚠ Energy stats module not available');
+        }
+        
+        // Final verification
+        const afterCount = this.buildingData.features.length;
+        console.log(`=== deleteAllBuildings END ===`);
+        console.log(`Buildings before: ${beforeCount}, after: ${afterCount}`);
+        
+        if (afterCount === 0) {
+            console.log('✅ All buildings deleted successfully');
+        } else {
+            console.error(`❌ Error: ${afterCount} buildings still remain!`);
+        }
+    }
+
+    /**
      * Reset all data
      */
     reset() {
         this.buildingData = { type: 'FeatureCollection', features: [] };
         this.treeTrunkData = { type: 'FeatureCollection', features: [] };
         this.treeCanopyData = { type: 'FeatureCollection', features: [] };
+        this.roadData = { type: 'FeatureCollection', features: [] };
         this.energyStats = { min: 0, max: 100, hasEnergyData: false };
         this.treeIdCounter = 0;
 
         const map = this.core.getMap();
         map.getSource('geojson-data').setData(this.buildingData);
+        this.updateRoadSource(map);
         this.updateTreeSources(map);
         this.updateBuildingColors();
 
@@ -919,6 +1110,9 @@ class DataModule {
         if (window.app && window.app.tree) {
             window.app.tree.updateTreeCounter();
         }
+
+        // Update building counter
+        this.updateBuildingCounter();
 
         // Notify energy statistics module
         if (this.energyStatsModule) {
@@ -934,17 +1128,18 @@ class DataModule {
         const buildings = this.buildingData.features;
         const trunks = this.treeTrunkData.features;
         const canopies = this.treeCanopyData.features;
+        const roads = this.roadData.features;
 
-        if (buildings.length || trunks.length) {
+        if (buildings.length || trunks.length || roads.length) {
             // For large datasets, combine features more efficiently
-            const totalFeatures = buildings.length + trunks.length + canopies.length;
+            const totalFeatures = buildings.length + trunks.length + canopies.length + roads.length;
             
             if (totalFeatures > 100000) {
                 console.log(`Large dataset detected: ${totalFeatures} features. Using optimized combination...`);
             }
             
             // Use Array.concat for better performance with large arrays
-            const allFeatures = buildings.concat(trunks, canopies);
+            const allFeatures = buildings.concat(trunks, canopies, roads);
             
             return {
                 type: 'FeatureCollection',
@@ -960,6 +1155,30 @@ class DataModule {
      */
     getBuildingData() {
         return this.buildingData;
+    }
+
+    /**
+     * Get road data
+     * @returns {Object} Road data (LineString features)
+     */
+    getRoadData() {
+        return this.roadData;
+    }
+
+    /**
+     * Update road source on map
+     * @param {Object} map - Mapbox map instance
+     */
+    updateRoadSource(map) {
+        if (!map) return;
+        
+        const roadSourceId = 'roads-source';
+        if (map.getSource(roadSourceId)) {
+            map.getSource(roadSourceId).setData(this.roadData);
+        } else {
+            // Source will be created by UI module when layer is added
+            console.log('Road source not found, will be created by UI module');
+        }
     }
 
     /**
@@ -1161,6 +1380,16 @@ class DataModule {
      */
     getSelectedColorScale() {
         return this.selectedColorScale;
+    }
+
+    /**
+     * Update building counter display
+     * Note: Counter removed from Data Management section, only used in Energy Statistics
+     */
+    updateBuildingCounter() {
+        // Counter removed from Data Management section
+        // Energy Statistics section has its own counter (building-count)
+        // This function is kept for compatibility but does nothing
     }
 }
 

@@ -19,16 +19,178 @@ class EnergyStatsModule {
      * Initialize energy statistics module
      */
     initialize() {
+        console.log('=== EnergyStatsModule.initialize called ===');
+        console.log('Data module:', this.data);
+        console.log('Core module:', this.core);
+        
         this.setupEventListeners();
         this.updateDisplay();
+        
+        console.log('=== EnergyStatsModule.initialize completed ===');
     }
 
     /**
      * Setup event listeners for energy statistics
      */
     setupEventListeners() {
-        // Listen for data changes from data module
-        // This will be called when data is loaded or updated
+        console.log('=== EnergyStatsModule.setupEventListeners called ===');
+        
+        // Store reference to this for use in event handlers
+        const self = this;
+        
+        // Use event delegation on document for reliability
+        // This works even if button is added later
+        const clickHandler = function(e) {
+            const target = e.target;
+            const button = target.closest('#delete-all-buildings') || 
+                         (target.id === 'delete-all-buildings' ? target : null) ||
+                         (target.closest('button') && target.closest('button').id === 'delete-all-buildings' ? target.closest('button') : null);
+            
+            if (button) {
+                console.log('=== Delete All Buildings button clicked (via delegation) ===');
+                console.log('Button element:', button);
+                console.log('Event target:', target);
+                e.preventDefault();
+                e.stopPropagation();
+                self.handleDeleteAllBuildings();
+            }
+        };
+        
+        document.addEventListener('click', clickHandler, true); // Use capture phase
+        console.log('✓ Event delegation listener attached to document (capture phase)');
+        
+        // Also try direct attachment as backup
+        const setupDeleteButton = () => {
+            const deleteAllBuildingsBtn = document.getElementById('delete-all-buildings');
+            console.log('Direct attachment: Looking for delete-all-buildings button:', deleteAllBuildingsBtn);
+            
+            if (deleteAllBuildingsBtn) {
+                // Remove any existing listeners by cloning
+                const newBtn = deleteAllBuildingsBtn.cloneNode(true);
+                deleteAllBuildingsBtn.parentNode.replaceChild(newBtn, deleteAllBuildingsBtn);
+                
+                newBtn.addEventListener('click', (e) => {
+                    console.log('=== Delete All Buildings button clicked (via direct) ===');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    self.handleDeleteAllBuildings();
+                }, true); // Use capture phase
+                console.log('✓ Direct event listener attached to delete-all-buildings button');
+                return true;
+            } else {
+                console.warn('⚠ delete-all-buildings button not found for direct attachment');
+                return false;
+            }
+        };
+        
+        // Try immediately
+        if (!setupDeleteButton()) {
+            // Retry after DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    console.log('DOMContentLoaded fired, retrying button attachment...');
+                    setupDeleteButton();
+                });
+            } else {
+                // DOM already loaded, retry after delay
+                setTimeout(() => {
+                    console.log('Retrying button attachment after delay...');
+                    if (!setupDeleteButton()) {
+                        setTimeout(() => {
+                            console.log('Final retry for button attachment...');
+                            setupDeleteButton();
+                        }, 500);
+                    }
+                }, 100);
+            }
+        }
+        
+        console.log('=== setupEventListeners completed ===');
+    }
+
+    /**
+     * Handle delete all buildings action
+     */
+    handleDeleteAllBuildings() {
+        console.log('Delete all buildings button clicked');
+        
+        // Get data module - try multiple sources
+        let dataModule = this.data;
+        if (!dataModule && window.app && window.app.data) {
+            console.log('Using data module from global app');
+            dataModule = window.app.data;
+        }
+        
+        if (!dataModule) {
+            console.error('Data module not available');
+            alert('Error: Data module not initialized. Please refresh the page.');
+            return;
+        }
+        
+        // Get building data
+        let buildingData;
+        try {
+            if (typeof dataModule.getBuildingData === 'function') {
+                buildingData = dataModule.getBuildingData();
+            } else if (dataModule.buildingData) {
+                // Direct access as fallback
+                buildingData = dataModule.buildingData;
+            } else {
+                throw new Error('Cannot access building data');
+            }
+        } catch (error) {
+            console.error('Error getting building data:', error);
+            alert('Error: Could not access building data');
+            return;
+        }
+        
+        console.log('Building data:', buildingData);
+        
+        if (!buildingData || !buildingData.features) {
+            console.error('Invalid building data structure');
+            alert('Error: Invalid building data structure');
+            return;
+        }
+        
+        const buildingCount = buildingData.features.length;
+        console.log(`Building count: ${buildingCount}`);
+        
+        // Check if buildings exist
+        if (buildingCount === 0) {
+            alert('No buildings to delete!');
+            return;
+        }
+        
+        // Confirm deletion
+        if (confirm(`Are you sure you want to delete all ${buildingCount} buildings?`)) {
+            console.log('User confirmed deletion');
+            
+            try {
+                if (typeof dataModule.deleteAllBuildings === 'function') {
+                    dataModule.deleteAllBuildings();
+                } else {
+                    // Fallback: manually delete buildings
+                    console.log('Using fallback deletion method');
+                    dataModule.buildingData = { type: 'FeatureCollection', features: [] };
+                    const map = this.core.getMap();
+                    if (map && map.getSource('geojson-data')) {
+                        map.getSource('geojson-data').setData(dataModule.buildingData);
+                    }
+                    if (typeof dataModule.updateBuildingCounter === 'function') {
+                        dataModule.updateBuildingCounter();
+                    }
+                    if (this.data.energyStatsModule) {
+                        this.data.energyStatsModule.updateStats();
+                    }
+                }
+                console.log('Buildings deleted successfully');
+            } catch (error) {
+                console.error('Error deleting buildings:', error);
+                alert('Error: Could not delete buildings. ' + error.message);
+            }
+        } else {
+            console.log('User cancelled deletion');
+        }
     }
 
     /**
@@ -334,3 +496,77 @@ class EnergyStatsModule {
 
 // Export for use in other modules
 window.EnergyStatsModule = EnergyStatsModule;
+
+// Global function to setup delete button - call this after page loads
+window.setupDeleteBuildingsButton = function() {
+    console.log('=== setupDeleteBuildingsButton called ===');
+    const btn = document.getElementById('delete-all-buildings');
+    console.log('Button found:', btn);
+    
+    if (!btn) {
+        console.error('❌ delete-all-buildings button not found!');
+        return false;
+    }
+    
+    // Remove existing listeners
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    // Add click listener
+    newBtn.addEventListener('click', function(e) {
+        console.log('=== Delete All Buildings button clicked ===');
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (window.app && window.app.energyStats) {
+            window.app.energyStats.handleDeleteAllBuildings();
+        } else if (window.app && window.app.data) {
+            // Fallback: call deleteAllBuildings directly
+            console.log('Calling deleteAllBuildings directly from data module');
+            window.app.data.deleteAllBuildings();
+        } else {
+            alert('Error: Application not initialized');
+        }
+    });
+    
+    console.log('✓ Delete button listener attached');
+    return true;
+};
+
+// Auto-setup when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(window.setupDeleteBuildingsButton, 500);
+    });
+} else {
+    setTimeout(window.setupDeleteBuildingsButton, 500);
+}
+
+// Debug helper - test delete button manually
+window.testDeleteBuildings = function() {
+    console.log('=== Manual Test: Delete All Buildings ===');
+    const btn = document.getElementById('delete-all-buildings');
+    console.log('Button found:', btn);
+    if (btn) {
+        console.log('Button visible:', btn.offsetParent !== null);
+        console.log('Button disabled:', btn.disabled);
+        console.log('Button style:', window.getComputedStyle(btn).display);
+        
+        // Try to trigger click programmatically
+        console.log('Attempting programmatic click...');
+        btn.click();
+    } else {
+        console.error('Button not found!');
+    }
+    
+    // Also try via app
+    if (window.app && window.app.energyStats) {
+        console.log('Trying via app.energyStats...');
+        window.app.energyStats.handleDeleteAllBuildings();
+    } else if (window.app && window.app.data) {
+        console.log('Trying via app.data...');
+        window.app.data.deleteAllBuildings();
+    } else {
+        console.error('app.energyStats and app.data not available!');
+    }
+};
