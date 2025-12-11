@@ -102,18 +102,7 @@ class UIModule {
             'source': 'geojson-data',
             'paint': {
                 'fill-extrusion-color': '#808080', // Default gray color, will be updated dynamically
-                'fill-extrusion-height': [
-                    'case',
-                    ['has', 'Height'], ['*', ['get', 'Height'], 0.3048],
-                    ['has', 'height'], ['*', ['get', 'height'], 0.3048],
-                    ['has', 'HEIGHT'], ['*', ['get', 'HEIGHT'], 0.3048],
-                    ['has', 'building_height'], ['*', ['get', 'building_height'], 0.3048],
-                    ['has', 'buildingHeight'], ['*', ['get', 'buildingHeight'], 0.3048],
-                    ['has', 'elevation'], ['*', ['get', 'elevation'], 0.3048],
-                    ['has', 'Elevation'], ['*', ['get', 'Elevation'], 0.3048],
-                    ['has', 'ELEVATION'], ['*', ['get', 'ELEVATION'], 0.3048],
-                    3.048 // Default height of 10 feet in meters
-                ],
+                'fill-extrusion-height': this.data.getFillExtrusionHeightExpression(),
                 'fill-extrusion-opacity': 1.0,
                 'fill-extrusion-base': 0
             }
@@ -357,6 +346,32 @@ class UIModule {
                         const data = JSON.parse(e.target.result);
                         const featureCount = data.features ? data.features.length : 0;
                         
+                        // Detect height data and ask user for unit
+                        const heightKeys = ['Height', 'height', 'HEIGHT', 'building_height', 'buildingHeight', 'elevation', 'Elevation', 'ELEVATION'];
+                        const hasHeightData = Array.isArray(data.features) && data.features.some(f => {
+                            if (!f || !f.properties) return false;
+                            return heightKeys.some(k => f.properties[k] !== null && f.properties[k] !== undefined && f.properties[k] !== '');
+                        });
+
+                        if (hasHeightData) {
+                            // Show modal and wait for user selection
+                            const selectedUnit = await this.showHeightUnitModal();
+                            if (selectedUnit === 'meters') {
+                                this.data.setHeightUnit('meters');
+                                console.log('Height unit set to meters by user choice');
+                            } else if (selectedUnit === 'feet') {
+                                this.data.setHeightUnit('feet');
+                                console.log('Height unit set to feet by user choice');
+                            } else {
+                                // Default to meters if cancelled
+                                this.data.setHeightUnit('meters');
+                                console.log('Height unit set to default (meters)');
+                            }
+                        } else {
+                            // No height data, default to meters
+                            this.data.setHeightUnit('meters');
+                        }
+
                         this.updateProgress(70, `Processing ${featureCount} features...`);
                         await new Promise(resolve => setTimeout(resolve, 0));
                         
@@ -496,6 +511,47 @@ class UIModule {
             saveBtn.innerHTML = originalText;
             this.hideProgress();
         }
+    }
+
+    /**
+     * Show height unit selection modal and wait for user selection
+     * @returns {Promise<'meters'|'feet'>} Selected unit
+     */
+    showHeightUnitModal() {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('height-unit-modal');
+            const confirmBtn = document.getElementById('height-unit-confirm');
+            const radioInputs = modal.querySelectorAll('input[name="height-unit"]');
+            
+            // Reset to meters (default)
+            radioInputs[0].checked = true;
+            
+            // Show modal
+            modal.style.display = 'flex';
+            
+            // Handle confirm button click
+            const handleConfirm = () => {
+                const selected = modal.querySelector('input[name="height-unit"]:checked');
+                const unit = selected ? selected.value : 'meters';
+                modal.style.display = 'none';
+                
+                // Clean up event listeners
+                confirmBtn.removeEventListener('click', handleConfirm);
+                modal.removeEventListener('keydown', handleKeyPress);
+                
+                resolve(unit);
+            };
+            
+            // Handle Enter key press
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter') {
+                    handleConfirm();
+                }
+            };
+            
+            confirmBtn.addEventListener('click', handleConfirm);
+            modal.addEventListener('keydown', handleKeyPress);
+        });
     }
 
     /**

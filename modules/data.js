@@ -15,6 +15,10 @@ class DataModule {
         this.energyStatsModule = null;
         this.selectedEnergyColumn = 'Energy_UrbanWWR_kWh'; // Default energy column
         this.selectedColorScale = 'energy'; // Default color scale
+        this.heightUnit = 'meters'; // feet | meters (default: meters)
+        this.heightMultiplier = 1; // meters → meters (no conversion needed)
+        this.defaultHeightFeet = 10;
+        this.defaultHeightMeters = 10;
     }
 
     /**
@@ -23,6 +27,55 @@ class DataModule {
      */
     setEnergyStatsModule(energyStatsModule) {
         this.energyStatsModule = energyStatsModule;
+    }
+
+    /**
+     * Set height unit and update map extrusion
+     * @param {'feet'|'meters'} unit
+     */
+    setHeightUnit(unit) {
+        this.heightUnit = unit === 'meters' ? 'meters' : 'feet';
+        this.heightMultiplier = this.heightUnit === 'meters' ? 1 : 0.3048;
+        this.updateBuildingHeightPaint();
+    }
+
+    getHeightUnit() {
+        return this.heightUnit;
+    }
+
+    /**
+     * Build fill-extrusion height expression based on selected unit
+     * @returns {Array} Mapbox expression
+     */
+    getFillExtrusionHeightExpression() {
+        const multiplier = this.heightMultiplier;
+        const defaultHeight = this.heightUnit === 'meters'
+            ? this.defaultHeightMeters
+            : this.defaultHeightFeet * multiplier;
+
+        return [
+            'case',
+            ['has', 'Height'], ['*', ['get', 'Height'], multiplier],
+            ['has', 'height'], ['*', ['get', 'height'], multiplier],
+            ['has', 'HEIGHT'], ['*', ['get', 'HEIGHT'], multiplier],
+            ['has', 'building_height'], ['*', ['get', 'building_height'], multiplier],
+            ['has', 'buildingHeight'], ['*', ['get', 'buildingHeight'], multiplier],
+            ['has', 'elevation'], ['*', ['get', 'elevation'], multiplier],
+            ['has', 'Elevation'], ['*', ['get', 'Elevation'], multiplier],
+            ['has', 'ELEVATION'], ['*', ['get', 'ELEVATION'], multiplier],
+            defaultHeight // Default height in meters
+        ];
+    }
+
+    /**
+     * Update extrusion height paint property to respect selected unit
+     */
+    updateBuildingHeightPaint() {
+        const map = this.core.getMap();
+        const layer = map.getLayer('geojson-layer');
+        if (!layer) return;
+
+        map.setPaintProperty('geojson-layer', 'fill-extrusion-height', this.getFillExtrusionHeightExpression());
     }
 
     /**
@@ -135,6 +188,9 @@ class DataModule {
             console.error('❌ geojson-data source not found!');
         }
         
+        // Apply current height unit to extrusion
+        this.updateBuildingHeightPaint();
+
         // Update road source
         this.updateRoadSource(map);
         
