@@ -89,13 +89,35 @@ class UIModule {
             return;
         }
 
+        // Add source for roads FIRST (so they render behind buildings)
+        map.addSource('roads-source', {
+            type: 'geojson',
+            data: this.data.getRoadData()
+        });
+
+        // Add layer for roads FIRST (lowest priority - behind everything)
+        // Use fill-extrusion instead of line so roads can be properly ordered behind buildings
+        // Roads are converted from LineString to Polygon via buffering in data processing
+        // Roads will be rendered as very thin extrusions (0.1m) at ground level
+        map.addLayer({
+            'id': 'roads-layer',
+            'type': 'fill-extrusion',
+            'source': 'roads-source',
+            'paint': {
+                'fill-extrusion-color': '#666666', // Gray color for roads
+                'fill-extrusion-height': 0.1, // Very thin (0.1 meters) so roads are at ground level
+                'fill-extrusion-base': 0, // Start at ground level
+                'fill-extrusion-opacity': 0.8
+            }
+        });
+
         // Add source for buildings
         map.addSource('geojson-data', {
             type: 'geojson',
             data: this.data.getBuildingData()
         });
 
-        // Add layer for buildings
+        // Add layer for buildings (after roads, so buildings render on top)
         map.addLayer({
             'id': 'geojson-layer',
             'type': 'fill-extrusion',
@@ -108,30 +130,6 @@ class UIModule {
             }
         });
 
-        // Add source for roads (LineString features)
-        map.addSource('roads-source', {
-            type: 'geojson',
-            data: this.data.getRoadData()
-        });
-
-        // Add layer for roads
-        map.addLayer({
-            'id': 'roads-layer',
-            'type': 'line',
-            'source': 'roads-source',
-            'paint': {
-                'line-color': '#666666', // Gray color for roads
-                'line-width': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    10, 1,
-                    15, 2,
-                    20, 4
-                ],
-                'line-opacity': 0.8
-            }
-        });
 
         this.layersSetup = true;
         console.log('✓ UI layers setup complete (buildings + roads)');

@@ -118,6 +118,66 @@ async function initializeApplication() {
         const map = app.core.getMap();
         let mapLayersSetup = false;
         
+        // Function to normalize layer order - ensure all layers have equal priority
+        const normalizeLayerOrder = () => {
+            try {
+                // Wait a bit to ensure all layers are added
+                setTimeout(() => {
+                    if (!map.getLayer('geojson-layer')) return;
+                    
+                    // Since roads are now added BEFORE buildings, they should already be behind
+                    // But we still need to ensure buildings and trees are at the same level
+                    
+                    // Ensure buildings and trees are at the same level (equal priority)
+                    // Move tree layers to be right after buildings so they render together
+                    // We want: buildings -> trunks -> canopies (all at same level)
+                    // moveLayer(A, B) places A before B, so to place A after B, we need to:
+                    // 1. Move A before B (A -> B)
+                    // 2. Move B before A (B -> A)
+                    // Result: B -> A (A is after B)
+                    const buildingAndTreeLayers = [
+                        'geojson-layer',       // Buildings (reference point)
+                        'tree-trunks-layer',   // Tree trunks (same level as buildings)
+                        'tree-canopies-layer'  // Tree canopies (same level as buildings)
+                    ];
+                    
+                    // Move each tree layer to be right after the previous one
+                    for (let i = 1; i < buildingAndTreeLayers.length; i++) {
+                        const layerId = buildingAndTreeLayers[i];
+                        const previousLayer = buildingAndTreeLayers[i - 1];
+                        
+                        if (map.getLayer(layerId) && map.getLayer(previousLayer)) {
+                            try {
+                                // To place layerId after previousLayer:
+                                // 1. Move layerId before previousLayer (creates: layerId -> previousLayer)
+                                map.moveLayer(layerId, previousLayer);
+                                // 2. Move previousLayer before layerId (creates: previousLayer -> layerId)
+                                map.moveLayer(previousLayer, layerId);
+                                // Result: previousLayer -> layerId (layerId is after previousLayer)
+                            } catch (e) {
+                                console.debug(`Could not move layer ${layerId}:`, e.message);
+                            }
+                        }
+                    }
+                    
+                    // Double-check: ensure roads are still behind buildings
+                    if (map.getLayer('roads-layer') && map.getLayer('geojson-layer')) {
+                        try {
+                            // Move roads to be right before buildings (so roads render behind)
+                            map.moveLayer('roads-layer', 'geojson-layer');
+                            console.log('✓ Roads confirmed behind buildings');
+                        } catch (e) {
+                            console.debug(`Could not move roads-layer:`, e.message);
+                        }
+                    }
+                    
+                    console.log('✓ Layer order normalized - roads behind, buildings and trees at same level');
+                }, 300);
+            } catch (error) {
+                console.warn('Could not normalize layer order:', error);
+            }
+        };
+
         // Function to setup map layers when ready
         const setupMapLayersWhenReady = () => {
             if (map.isStyleLoaded() && !mapLayersSetup) {
@@ -126,6 +186,9 @@ async function initializeApplication() {
                 // Now that map is loaded, setup map layers for modules
                 app.tree.setupMapLayers();
                 app.ui.setupMapLayers();
+                
+                // Normalize layer order to ensure equal priority
+                normalizeLayerOrder();
                 
                 // Set up lighting and initial sun position
                 map.setConfigProperty('basemap', 'lightPreset', 'custom');

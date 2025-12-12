@@ -132,13 +132,36 @@ class DataModule {
                     }
                 }
             } else if (feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString') {
-                // Roads/streets - add to road data
-                this.roadData.features.push(feature);
-                roadCount++;
-                if (i < 5) {
-                    console.log(`Feature ${i}: Road/LineString detected`);
-                    console.log(`  - Highway type:`, feature.properties.highway);
-                    console.log(`  - Name:`, feature.properties.name);
+                // Roads/streets - convert LineString to Polygon for fill-extrusion rendering
+                try {
+                    // Buffer the LineString to create a polygon (road width)
+                    // Road width varies by zoom level, but we'll use a fixed width for simplicity
+                    // Typical road width: 3-5 meters for residential, 5-10 meters for main roads
+                    const roadWidth = 3; // meters - will be adjusted by zoom level in paint properties
+                    const buffered = turf.buffer(feature, roadWidth, { units: 'meters' });
+                    
+                    // Create a new feature with Polygon geometry
+                    const roadPolygon = {
+                        type: 'Feature',
+                        geometry: buffered.geometry,
+                        properties: {
+                            ...feature.properties,
+                            originalType: feature.geometry.type // Keep track of original type
+                        }
+                    };
+                    
+                    this.roadData.features.push(roadPolygon);
+                    roadCount++;
+                    if (i < 5) {
+                        console.log(`Feature ${i}: Road/LineString detected and converted to Polygon`);
+                        console.log(`  - Highway type:`, feature.properties.highway);
+                        console.log(`  - Name:`, feature.properties.name);
+                    }
+                } catch (error) {
+                    console.warn(`Failed to buffer road feature ${i}:`, error);
+                    // Fallback: add original feature (will need line layer)
+                    this.roadData.features.push(feature);
+                    roadCount++;
                 }
             } else if (feature.geometry.type === 'Point') {
                 // Legacy support for old tree format (convert to new format)
@@ -190,7 +213,7 @@ class DataModule {
         
         // Apply current height unit to extrusion
         this.updateBuildingHeightPaint();
-
+        
         // Update road source
         this.updateRoadSource(map);
         

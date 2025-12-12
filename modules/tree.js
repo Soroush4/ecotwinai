@@ -382,6 +382,7 @@ class TreeModule {
                 }
             });
         }
+
         
         // LOD Level 2: Billboard canopies (face to camera) - Medium zoom (12-15)
         // Create canvas image for tree icon
